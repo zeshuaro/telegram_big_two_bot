@@ -416,12 +416,8 @@ def join(bot, update, job_queue):
         row = cur.fetchone()
         db.close()
 
-        if row is None:
-            join_timer = 60
-            job = job_queue.run_once(stop_empty_game, 60, context=group_tele_id)
-        else:
-            join_timer = row[0]
-            job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
+        join_timer = row[0] if row[0] else 60
+        job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
         queued_jobs[group_tele_id]["join"] = job
 
         if num_players != 4:
