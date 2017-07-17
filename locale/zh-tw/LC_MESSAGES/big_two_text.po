@@ -1,0 +1,333 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR ORGANIZATION
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: 2017-07-16 12:07+1000\n"
+"PO-Revision-Date: 2017-07-16 12:10+1000\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 1.8.7.1\n"
+"Last-Translator: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"Language: zh_TW\n"
+
+#: big_two_bot.py:137
+msgid ""
+"Welcome to Big Two Moderator. Add me into a group and type /startgame to "
+"start a game.\n"
+"\n"
+"You can also type /setlang to change the bot's language.\n"
+"\n"
+"Please note that you can only use /setlang for changing the bot's language "
+"in a group if you are a group admin."
+msgstr ""
+"歡迎來到Big Two Moderator。加我到群裏面然後打/startgame來開始鋤大D。\n"
+"\n"
+"你可以打/setlang來轉Bot的語言。\n"
+"\n"
+"但如果你想轉Bot在群裏面的語言，你一定要是群的管理員才可以。"
+
+#: big_two_bot.py:150
+msgid ""
+"Add me into a group and type /startgame to start a game. Other players can "
+"then type /join to join the game.\n"
+"\n"
+"You will not be able to start or join a game if a game has already been set "
+"up and running.\n"
+"\n"
+"You can only force to stop a game if you are a group admin.\n"
+"\n"
+"Use /command to get a list of commands to see what I can do."
+msgstr ""
+"加我入到群裏面然後打 /startgame 來開始遊戲。然後其他人就可以打 /join 來加入遊"
+"戲。\n"
+"\n"
+"如果個遊戲已經開始了，你要等遊戲結束後才可以開始或者加入新遊戲。\n"
+"\n"
+"你要是群的管理員才可以強制停止遊戲。\n"
+"\n"
+"用 /command 來看command list，看看我可以做些甚麼。"
+
+#: big_two_bot.py:164
+msgid ""
+"/setlang - Set your or the group's bot language\n"
+"/setjointimer <timer> - Set the timer for joining the game (e.g. /"
+"setjointimer 30)\n"
+"/setpasstimer <timer> - Set the timer for automatic pass (e.g. /setpasstimer "
+"30)\n"
+"/startgame - Start a new game\n"
+"/join - Join a game\n"
+"/forcestop - Force to stop a game\n"
+"/showdeck - Show your deck of cards\n"
+"/help - How to use the bot\n"
+"/donate - Support my developer!"
+msgstr ""
+"/setlang - 設定你或者群的預設語言\n"
+"/setjointimer <timer> - 設定加入遊戲的計時器 (用法：/setjointimer 30)\n"
+"/setpasstimer <timer> - 設定自動PASS的計時器 (用法：/setpasstimer 30)\n"
+"/startgame - 開始新遊戲\n"
+"/join - 加入遊戲\n"
+"/forcestop - 強制停止遊戲\n"
+"/showdeck - 看你的牌\n"
+"/help - 怎麼用這個bot\n"
+"/donate - 支持我的開發者！"
+
+#: big_two_bot.py:182
+msgid ""
+"Want to help keep me online? Please donate to margelettob@gmail.com through "
+"PayPal.\n"
+"\n"
+"Donations help me to stay on my server and keep running."
+msgstr ""
+"想幫我繼續讓你玩？用PayPal捐款到 margelettob@gmail.com 吧。\n"
+"\n"
+"你們的捐款可以讓我留在我的伺服器上繼續讓你們玩。"
+
+#: big_two_bot.py:193
+msgid ""
+"Pick your default language from below\n"
+"\n"
+msgstr ""
+"在下面選你的預設語言\n"
+"\n"
+
+#: big_two_bot.py:197
+msgid ""
+"Pick the group's default language from below\n"
+"\n"
+msgstr ""
+"在下面選群的預設語言\n"
+"\n"
+
+#: big_two_bot.py:240 big_two_bot.py:304 big_two_bot.py:344 big_two_bot.py:702
+msgid "You can only use this command in a group"
+msgstr "你要在群裏面才可以用這個指令"
+
+#: big_two_bot.py:253 big_two_bot.py:716
+msgid "You are not a group admin"
+msgstr "你不是群組管理員"
+
+#: big_two_bot.py:262
+msgid "You can only change the timer when a game is not running"
+msgstr "你要在沒有人玩的時候才可以改計時器"
+
+#: big_two_bot.py:272
+msgid "Join timer can only be set between 10s to 60s"
+msgstr "加入遊戲的計時器只可以設定在10到60秒"
+
+#: big_two_bot.py:274
+msgid "Pass timer can only be set between 20s to 120s"
+msgstr "PASS的計時器只可以設定在20到120秒"
+
+#: big_two_bot.py:292
+msgid "Join timer has been set to %ds"
+msgstr "設定好有%d秒來加入遊戲"
+
+#: big_two_bot.py:294
+msgid "Pass timer has been set to %ds"
+msgstr "設定好有%d秒來出牌"
+
+#: big_two_bot.py:313
+msgid "A game has already been started"
+msgstr "已經有新遊戲了"
+
+#: big_two_bot.py:324
+msgid ""
+"[%s] has started Big Two. Type /join to join the game\n"
+"\n"
+msgstr ""
+"[%s] 開始了鋤大D\n"
+"打 /join 來加入個遊戲\n"
+
+#: big_two_bot.py:357
+msgid ""
+"[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able "
+"to join and play Big Two"
+msgstr "[%s]麻煩你跟[@biggytwobot]說[/start]。不然你會加入不到和玩不到鋤大D"
+
+#: big_two_bot.py:360
+msgid "Say start to me"
+msgstr "跟我說start"
+
+#: big_two_bot.py:378
+msgid ""
+"A game has not been started yet. Type /startgame in a group to start a game."
+msgstr "還沒有新遊戲。在群裏面打 /startgame 來開始新遊戲。"
+
+#: big_two_bot.py:386
+msgid "You have already joined a game"
+msgstr "你已經加入遊戲了"
+
+#: big_two_bot.py:405
+msgid ""
+"[%s] has joined.\n"
+"There are now %d/4 Players\n"
+msgstr ""
+"[%s]加入了。\n"
+"現在有%d/4玩家\n"
+
+#: big_two_bot.py:423
+msgid "%ss left to join"
+msgstr "只剩%d秒來加入遊戲"
+
+#: big_two_bot.py:429
+msgid "You have joined the game in the group [%s]"
+msgstr "你在[%s]加入了遊戲"
+
+#: big_two_bot.py:435
+msgid ""
+"Enough players, game start. I will PM your deck of cards when it is your "
+"turn. "
+msgstr "夠人了，遊戲開始。到你的時候我會告訴你你的牌"
+
+#: big_two_bot.py:443
+msgid "Each player has 45s to pick your cards"
+msgstr "每人有45秒來出牌"
+
+#: big_two_bot.py:446
+msgid "Each player has %ss to pick your cards"
+msgstr "每人有%s秒來出牌"
+
+#: big_two_bot.py:463
+msgid "Game has been stopped by me since there is no enough players."
+msgstr "我把遊戲停了你們全都不在玩"
+
+#: big_two_bot.py:531
+msgid "%s decided to PASS\n"
+msgstr "%s 說 PASS\n"
+
+#: big_two_bot.py:536 big_two_bot.py:1019
+msgid "%s's Turn\n"
+msgstr "現在到 %s\n"
+
+#: big_two_bot.py:568
+msgid "Selected cards:\n"
+msgstr "選好的牌：\n"
+
+#: big_two_bot.py:582
+msgid ""
+"Pick the cards that you will like to use from below, one at a time. Press "
+"done when you are finished"
+msgstr "在下面一張一張地選你想用的牌，選好就按選好了"
+
+#: big_two_bot.py:607
+msgid "Unselect"
+msgstr "重新選過"
+
+#: big_two_bot.py:609
+msgid "Done"
+msgstr "選好了"
+
+#: big_two_bot.py:613
+msgid "Sort by number"
+msgstr "按點數排"
+
+#: big_two_bot.py:615 big_two_bot.py:620
+msgid "PASS"
+msgstr "PASS"
+
+#: big_two_bot.py:618
+msgid "Sort by suit"
+msgstr "按花排"
+
+#: big_two_bot.py:670
+msgid "%s has %d cards\n"
+msgstr "%s 有 %d 張牌\n"
+
+#: big_two_bot.py:675
+msgid "%s is in control now\n"
+msgstr "%s 現在最大\n"
+
+#: big_two_bot.py:678
+msgid "%s used:\n"
+msgstr "%s 用了：\n"
+
+#: big_two_bot.py:725 big_two_bot.py:760
+msgid "No game is running at the moment"
+msgstr "現在沒有進行中的遊戲"
+
+#: big_two_bot.py:732
+msgid "Game has been stopped by [%s]"
+msgstr "[%s] 取消了遊戲"
+
+#: big_two_bot.py:751
+msgid "You are not in a game"
+msgstr "你不在遊戲裏面"
+
+#: big_two_bot.py:773
+msgid "Game has not started yet"
+msgstr "還沒有新遊戲。在群裏面打/startgame來開始新遊戲。"
+
+#: big_two_bot.py:778
+msgid "Your deck of cards:\n"
+msgstr "你的牌：\n"
+
+#: big_two_bot.py:867
+msgid "Default language has been set"
+msgstr "預設語言設定好了"
+
+#: big_two_bot.py:929
+msgid "Invalid cards. Please try again\n"
+msgstr "出不了你選好的牌，你再選過\n"
+
+#: big_two_bot.py:932
+msgid "You cards are not bigger than the previous cards. "
+msgstr "你出的牌不夠上一手大。"
+
+#: big_two_bot.py:933
+msgid "Please try again\n"
+msgstr "你再選過\n"
+
+#: big_two_bot.py:936 big_two_bot.py:1040
+msgid "These cards have been used:\n"
+msgstr "用了這些牌：\n"
+
+#: big_two_bot.py:1016
+msgid "I have passed all players since %s has used %s%s\n"
+msgstr "我幫你們全部人PASS 了因為%s用了%s%s\n"
+
+#: big_two_bot.py:1029
+msgid "You won!"
+msgstr "你贏了！"
+
+#: big_two_bot.py:1035
+msgid "You lost!"
+msgstr "你輸了！"
+
+#: big_two_bot.py:1047
+msgid "%s won!"
+msgstr "%s 贏了！"
+
+#: big_two_bot.py:1074
+msgid "You Passed"
+msgstr "你Pass了"
+
+#: big_two_bot.py:1100
+msgid "Game has been stopped by me since no one is playing"
+msgstr "我把遊戲停了你們全都不在玩"
+
+#: big_two_bot.py:1142
+msgid ""
+"Please send me your feedback or type /cancel to cancel this operation. My "
+"developer can understand English and Chinese."
+msgstr ""
+"你可以把你的意見告訴我，又或者用 /cancel 來取消這個指令。我的開發者懂英文同中"
+"文。"
+
+#: big_two_bot.py:1161
+msgid "The feedback you sent is not in English or Chinese. Please try again."
+msgstr "你發給我的意見又不是英文又不是中文，你再試一下。"
+
+#: big_two_bot.py:1166
+msgid "Thank you for your feedback, I will let my developer know."
+msgstr "謝謝你的意見，我會告訴我的開發者。"
+
+#: big_two_bot.py:1173
+msgid "Operation cancelled."
+msgstr "取消了指令。"

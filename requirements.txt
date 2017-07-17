@@ -1,0 +1,4 @@
+langdetect==1.0.7
+python-telegram-bot==6.0.3
+psycopg2==2.7.1
+python-env==1.0.0

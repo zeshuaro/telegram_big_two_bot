@@ -1,0 +1,346 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR ORGANIZATION
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: 2017-07-16 12:03+1000\n"
+"PO-Revision-Date: 2017-07-16 12:04+1000\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 1.8.7.1\n"
+"Last-Translator: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: en\n"
+
+#: big_two_bot.py:137
+msgid ""
+"Welcome to Big Two Moderator. Add me into a group and type /startgame to "
+"start a game.\n"
+"\n"
+"You can also type /setlang to change the bot's language.\n"
+"\n"
+"Please note that you can only use /setlang for changing the bot's language "
+"in a group if you are a group admin."
+msgstr ""
+"Welcome to Big Two Moderator. Add me into a group and type /startgame to "
+"start a game.\n"
+"\n"
+"You can also type /setlang to change the bot's language.\n"
+"\n"
+"Please note that you can only use /setlang for changing the bot's language "
+"in a group if you are a group admin."
+
+#: big_two_bot.py:150
+msgid ""
+"Add me into a group and type /startgame to start a game. Other players can "
+"then type /join to join the game.\n"
+"\n"
+"You will not be able to start or join a game if a game has already been set "
+"up and running.\n"
+"\n"
+"You can only force to stop a game if you are a group admin.\n"
+"\n"
+"Use /command to get a list of commands to see what I can do."
+msgstr ""
+"Add me into a group and type /startgame to start a game. Other players can "
+"then type /join to join the game.\n"
+"\n"
+"You will not be able to start or join a game if a game has already been set "
+"up and running.\n"
+"\n"
+"You can only force to stop a game if you are a group admin.\n"
+"\n"
+"Use /command to get a list of commands to see what I can do."
+
+#: big_two_bot.py:164
+msgid ""
+"/setlang - Set your or the group's bot language\n"
+"/setjointimer <timer> - Set the timer for joining the game (e.g. /"
+"setjointimer 30)\n"
+"/setpasstimer <timer> - Set the timer for automatic pass (e.g. /setpasstimer "
+"30)\n"
+"/startgame - Start a new game\n"
+"/join - Join a game\n"
+"/forcestop - Force to stop a game\n"
+"/showdeck - Show your deck of cards\n"
+"/help - How to use the bot\n"
+"/donate - Support my developer!"
+msgstr ""
+"/setlang - Set your or the group's bot language\n"
+"/setjointimer <timer> - Set the timer for joining the game (e.g. /"
+"setjointimer 30)\n"
+"/setpasstimer <timer> - Set the timer for automatic pass (e.g. /setpasstimer "
+"30)\n"
+"/startgame - Start a new game\n"
+"/join - Join a game\n"
+"/forcestop - Force to stop a game\n"
+"/showdeck - Show your deck of cards\n"
+"/help - How to use the bot\n"
+"/donate - Support my developer!"
+
+#: big_two_bot.py:182
+msgid ""
+"Want to help keep me online? Please donate to margelettob@gmail.com through "
+"PayPal.\n"
+"\n"
+"Donations help me to stay on my server and keep running."
+msgstr ""
+"Want to help keep me online? Please donate to margelettob@gmail.com through "
+"PayPal.\n"
+"\n"
+"Donations help me to stay on my server and keep running."
+
+#: big_two_bot.py:193
+msgid ""
+"Pick your default language from below\n"
+"\n"
+msgstr ""
+"Pick your default language from below\n"
+"\n"
+
+#: big_two_bot.py:197
+msgid ""
+"Pick the group's default language from below\n"
+"\n"
+msgstr ""
+"Pick the group's default language from below\n"
+"\n"
+
+#: big_two_bot.py:240 big_two_bot.py:304 big_two_bot.py:344 big_two_bot.py:702
+msgid "You can only use this command in a group"
+msgstr "You can only use this command in a group"
+
+#: big_two_bot.py:253 big_two_bot.py:716
+msgid "You are not a group admin"
+msgstr "You are not a group admin"
+
+#: big_two_bot.py:262
+msgid "You can only change the timer when a game is not running"
+msgstr "You can only change the timer when a game is not running"
+
+#: big_two_bot.py:272
+msgid "Join timer can only be set between 10s to 60s"
+msgstr "Join timer can only be set between 10s to 60s"
+
+#: big_two_bot.py:274
+msgid "Pass timer can only be set between 20s to 120s"
+msgstr "Pass timer can only be set between 20s to 120s"
+
+#: big_two_bot.py:292
+msgid "Join timer has been set to %ds"
+msgstr "Join timer has been set to %ds"
+
+#: big_two_bot.py:294
+msgid "Pass timer has been set to %ds"
+msgstr "Pass timer has been set to %ds"
+
+#: big_two_bot.py:313
+msgid "A game has already been started"
+msgstr "A game has already been started"
+
+#: big_two_bot.py:324
+msgid ""
+"[%s] has started Big Two. Type /join to join the game\n"
+"\n"
+msgstr ""
+"[%s] has started Big Two. Type /join to join the game\n"
+"\n"
+
+#: big_two_bot.py:357
+msgid ""
+"[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able "
+"to join and play Big Two"
+msgstr ""
+"[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able "
+"to join and play Big Two"
+
+#: big_two_bot.py:360
+msgid "Say start to me"
+msgstr "Say start to me"
+
+#: big_two_bot.py:378
+msgid ""
+"A game has not been started yet. Type /startgame in a group to start a game."
+msgstr ""
+"A game has not been started yet. Type /startgame in a group to start a game."
+
+#: big_two_bot.py:386
+msgid "You have already joined a game"
+msgstr "You have already joined a game"
+
+#: big_two_bot.py:405
+msgid ""
+"[%s] has joined.\n"
+"There are now %d/4 Players\n"
+msgstr ""
+"[%s] has joined.\n"
+"There are now %d/4 Players\n"
+
+#: big_two_bot.py:423
+msgid "%ss left to join"
+msgstr "%ss left to join"
+
+#: big_two_bot.py:429
+msgid "You have joined the game in the group [%s]"
+msgstr "You have joined the game in the group [%s]"
+
+#: big_two_bot.py:435
+msgid ""
+"Enough players, game start. I will PM your deck of cards when it is your "
+"turn. "
+msgstr ""
+"Enough players, game start. I will PM your deck of cards when it is your "
+"turn. "
+
+#: big_two_bot.py:443
+msgid "Each player has 45s to pick your cards"
+msgstr "Each player has 45s to pick your cards"
+
+#: big_two_bot.py:446
+msgid "Each player has %ss to pick your cards"
+msgstr "Each player has %ss to pick your cards"
+
+#: big_two_bot.py:463
+msgid "Game has been stopped by me since there is no enough players."
+msgstr "Game has been stopped by me since there is no enough players."
+
+#: big_two_bot.py:531
+msgid "%s decided to PASS\n"
+msgstr "%s decided to PASS\n"
+
+#: big_two_bot.py:536 big_two_bot.py:1019
+msgid "%s's Turn\n"
+msgstr "%s's Turn\n"
+
+#: big_two_bot.py:568
+msgid "Selected cards:\n"
+msgstr "Selected cards:\n"
+
+#: big_two_bot.py:582
+msgid ""
+"Pick the cards that you will like to use from below, one at a time. Press "
+"done when you are finished"
+msgstr ""
+"Pick the cards that you will like to use from below, one at a time. Press "
+"done when you are finished"
+
+#: big_two_bot.py:607
+msgid "Unselect"
+msgstr "Unselect"
+
+#: big_two_bot.py:609
+msgid "Done"
+msgstr "Done"
+
+#: big_two_bot.py:613
+msgid "Sort by number"
+msgstr "Sort by number"
+
+#: big_two_bot.py:615 big_two_bot.py:620
+msgid "PASS"
+msgstr "PASS"
+
+#: big_two_bot.py:618
+msgid "Sort by suit"
+msgstr "Sort by suit"
+
+#: big_two_bot.py:670
+msgid "%s has %d cards\n"
+msgstr "%s has %d cards\n"
+
+#: big_two_bot.py:675
+msgid "%s is in control now\n"
+msgstr "%s is in control now\n"
+
+#: big_two_bot.py:678
+msgid "%s used:\n"
+msgstr "%s used:\n"
+
+#: big_two_bot.py:725 big_two_bot.py:760
+msgid "No game is running at the moment"
+msgstr "No game is running at the moment"
+
+#: big_two_bot.py:732
+msgid "Game has been stopped by [%s]"
+msgstr "Game has been stopped by [%s]"
+
+#: big_two_bot.py:751
+msgid "You are not in a game"
+msgstr "You are not in a game"
+
+#: big_two_bot.py:773
+msgid "Game has not started yet"
+msgstr "Game has not started yet"
+
+#: big_two_bot.py:778
+msgid "Your deck of cards:\n"
+msgstr "Your deck of cards:\n"
+
+#: big_two_bot.py:867
+msgid "Default language has been set"
+msgstr "Default language has been set"
+
+#: big_two_bot.py:929
+msgid "Invalid cards. Please try again\n"
+msgstr "Invalid cards. Please try again\n"
+
+#: big_two_bot.py:932
+msgid "You cards are not bigger than the previous cards. "
+msgstr "You cards are not bigger than the previous cards. "
+
+#: big_two_bot.py:933
+msgid "Please try again\n"
+msgstr "Please try again\n"
+
+#: big_two_bot.py:936 big_two_bot.py:1040
+msgid "These cards have been used:\n"
+msgstr "These cards have been used:\n"
+
+#: big_two_bot.py:1016
+msgid "I have passed all players since %s has used %s%s\n"
+msgstr "I have passed all players since %s has used %s%s\n"
+
+#: big_two_bot.py:1029
+msgid "You won!"
+msgstr "You won!"
+
+#: big_two_bot.py:1035
+msgid "You lost!"
+msgstr "You lost!"
+
+#: big_two_bot.py:1047
+msgid "%s won!"
+msgstr "%s won!"
+
+#: big_two_bot.py:1074
+msgid "You Passed"
+msgstr "You Passed"
+
+#: big_two_bot.py:1100
+msgid "Game has been stopped by me since no one is playing"
+msgstr "Game has been stopped by me since no one is playing"
+
+#: big_two_bot.py:1142
+msgid ""
+"Please send me your feedback or type /cancel to cancel this operation. My "
+"developer can understand English and Chinese."
+msgstr ""
+"Please send me your feedback or type /cancel to cancel this operation. My "
+"developer can understand English and Chinese."
+
+#: big_two_bot.py:1161
+msgid "The feedback you sent is not in English or Chinese. Please try again."
+msgstr "The feedback you sent is not in English or Chinese. Please try again."
+
+#: big_two_bot.py:1166
+msgid "Thank you for your feedback, I will let my developer know."
+msgstr "Thank you for your feedback, I will let my developer know."
+
+#: big_two_bot.py:1173
+msgid "Operation cancelled."
+msgstr "Operation cancelled."
