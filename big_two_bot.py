@@ -35,7 +35,8 @@ if app_url:
     urllib.parse.uses_netloc.append("postgres")
     url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
 
-telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA")
+telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA") if os.environ.get("TELEGRAM_TOKEN_BETA") \
+    else os.environ.get("TELEGRAM_TOKEN")
 is_testing = os.environ.get("IS_TESTING")
 dev_tele_id = int(os.environ.get("DEV_TELE_ID"))
 dev_email = os.environ.get("DEV_EMAIL") if os.environ.get("DEV_EMAIL") else "sample@email.com"
