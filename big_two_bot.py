@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import re
+import smtplib
 import psycopg2
 import urllib.parse
 
@@ -38,6 +39,9 @@ telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA")
 is_testing = os.environ.get("IS_TESTING")
 dev_tele_id = int(os.environ.get("DEV_TELE_ID"))
 dev_email = os.environ.get("DEV_EMAIL") if os.environ.get("DEV_EMAIL") else "sample@email.com"
+dev_email_pw = os.environ.get("DEV_EMAIL_PW")
+is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
+smtp_host = os.environ.get("SMTP_HOST")
 
 db_name = os.environ.get("DB_NAME")
 db_user = os.environ.get("DB_USER")
@@ -1131,13 +1135,16 @@ def feedback_cov_handler():
             0: [MessageHandler(Filters.text, receive_feedback)],
         },
 
-        fallbacks=[CommandHandler("cancel", cancel)]
+        fallbacks=[CommandHandler("cancel", cancel)],
+
+        allow_reentry=True
     )
 
     return conv_handler
 
 
 # Sends a feedback message
+@run_async
 def feedback(bot, update):
     install_lang(update.message.from_user.id)
     update.message.reply_text(_("Please send me your feedback or type /cancel to cancel this operation. My developer "
@@ -1162,9 +1169,20 @@ def receive_feedback(bot, update):
         update.message.reply_text(_("The feedback you sent is not in English or Chinese. Please try again."))
         return 0
 
-    print("Feedback received from %d: %s" % (update.message.from_user.id, update.message.text))
     install_lang(update.message.from_user.id)
     update.message.reply_text(_("Thank you for your feedback, I will let my developer know."))
+
+    if is_email_feedback:
+        server = smtplib.SMTP(smtp_host)
+        server.ehlo()
+        server.starttls()
+        server.login(dev_email, dev_email_pw)
+
+        text = "Feedback received from %d\n\n%s" % (update.message.from_user.id, update.message.text)
+        message = "Subject: %s\n\n%s" % ("Telegram Big Two Bot Feedback", text)
+        server.sendmail(dev_email, dev_email, message)
+    else:
+        logger.info("Feedback received from %d: %s" % (update.message.from_user.id, update.message.text))
 
     return ConversationHandler.END
 
