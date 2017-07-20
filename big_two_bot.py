@@ -15,7 +15,7 @@ import urllib.parse
 from collections import defaultdict
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.error import Unauthorized
+from telegram.error import TelegramError, Unauthorized
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 from telegram.ext.dispatcher import run_async
 
@@ -355,7 +355,7 @@ def join(bot, update, job_queue):
     try:
         bot_message = bot.send_message(player_tele_id, "Testing... You can ignore or delete this message if it doesn't"
                                                        "get deleted automatically.")
-    except Unauthorized:
+    except TelegramError or Unauthorized:
         player_name = update.message.from_user.first_name
         group_tele_id = update.message.chat.id
         install_lang(group_tele_id)
