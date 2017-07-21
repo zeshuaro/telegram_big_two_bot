@@ -15,9 +15,17 @@ testing purposes
 
 ### Prerequisites
 
+Run the following command to install the required libraries:
+
+
 ```
 pip install -r requirements.txt
 ```
+
+Below is a list of the main libraries that are included:
+
+* [Python Telegram Bot](https://github.com/python-telegram-bot/python-telegram-bot)
+* [Psycopg 2](https://github.com/psycopg/psycopg2)
 
 You will also need postgres to be set up and running.
 
