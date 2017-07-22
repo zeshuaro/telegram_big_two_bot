@@ -31,10 +31,6 @@ dotenv.load(dotenv_path)
 app_url = os.environ.get("APP_URL")
 port = int(os.environ.get('PORT', '5000'))
 
-if app_url:
-    urllib.parse.uses_netloc.append("postgres")
-    url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
-
 telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA") if os.environ.get("TELEGRAM_TOKEN_BETA") \
     else os.environ.get("TELEGRAM_TOKEN")
 is_testing = os.environ.get("IS_TESTING")
@@ -44,10 +40,21 @@ dev_email_pw = os.environ.get("DEV_EMAIL_PW")
 is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
 
-db_name = os.environ.get("DB_NAME")
-db_user = os.environ.get("DB_USER")
-db_pw = os.environ.get("DB_PW")
-db_host = os.environ.get("DB_HOST")
+if os.environ.get("DATABASE_URL"):
+    urllib.parse.uses_netloc.append("postgres")
+    url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+
+    db_name = url.path[1:]
+    db_user = url.username
+    db_pw = url.password
+    db_host = url.hostname
+    db_port = url.port
+else:
+    db_name = os.environ.get("DB_NAME")
+    db_user = os.environ.get("DB_USER")
+    db_pw = os.environ.get("DB_PW")
+    db_host = os.environ.get("DB_HOST")
+    db_port = os.environ.get("DB_PORT")
 
 # Queued jobs
 queued_jobs = defaultdict(dict)
@@ -55,12 +62,7 @@ queued_jobs = defaultdict(dict)
 
 # Connects to database
 def connect_db():
-    if app_url:
-        return psycopg2.connect(database=url.path[1:], user=url.username, password=url.password, host=url.hostname,
-                                port=url.port)
-    else:
-        return psycopg2.connect("dbname=%s host=%s user=%s password=%s" %
-                                (db_name, db_host, db_user, db_pw))
+    return psycopg2.connect(database=db_name, user=db_user, password=db_pw, host=db_host, port=db_port)
 
 
 # Creates database tables
@@ -311,6 +313,9 @@ def start_game(bot, update, job_queue):
         bot.sendMessage(group_tele_id, message)
         return
 
+    if not can_msg_player(bot, update):
+        return
+
     db = connect_db()
     cur = db.cursor()
 
@@ -336,6 +341,37 @@ def start_game(bot, update, job_queue):
     join(bot, update, job_queue)
 
 
+# Checks if bot is authorised to send user messages
+def can_msg_player(bot, update):
+    is_success = True
+    player_tele_id = update.message.from_user.id
+
+    try:
+        bot_message = bot.send_message(player_tele_id, "Testing... You can ignore or delete this message if it doesn't"
+                                                       "get deleted automatically.")
+    except TelegramError or Unauthorized:
+        is_success = False
+        player_name = update.message.from_user.first_name
+        group_tele_id = update.message.chat.id
+        install_lang(group_tele_id)
+
+        message = (_("[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able to join and "
+                     "play Big Two") % player_name)
+
+        keyboard = [[InlineKeyboardButton(text=_("Say start to me"),
+                                          url="https://telegram.me/biggytwobot")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        bot.send_message(chat_id=group_tele_id,
+                         text=message,
+                         reply_markup=reply_markup)
+    else:
+        bot.delete_message(chat_id=player_tele_id,
+                           message_id=bot_message.message_id)
+
+    return is_success
+
+
 # Joins a new game
 def join(bot, update, job_queue):
     player_name = update.message.from_user.first_name
@@ -351,29 +387,8 @@ def join(bot, update, job_queue):
         bot.sendMessage(player_tele_id, message)
         return
 
-    # Checks if bot is authorised to send user messages
-    try:
-        bot_message = bot.send_message(player_tele_id, "Testing... You can ignore or delete this message if it doesn't"
-                                                       "get deleted automatically.")
-    except TelegramError or Unauthorized:
-        player_name = update.message.from_user.first_name
-        group_tele_id = update.message.chat.id
-        install_lang(group_tele_id)
-
-        message = (_("[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able to join and "
-                     "play Big Two") % player_name)
-
-        keyboard = [[InlineKeyboardButton(text=_("Say start to me"),
-                                          url="https://telegram.me/biggytwobot")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        bot.send_message(chat_id=group_tele_id,
-                         text=message,
-                         reply_markup=reply_markup)
+    if not can_msg_player(bot, update):
         return
-    else:
-        bot.delete_message(chat_id=player_tele_id,
-                           message_id=bot_message.message_id)
 
     db = connect_db()
     cur = db.cursor()

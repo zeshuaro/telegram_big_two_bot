@@ -42,4 +42,5 @@ DB_NAME=<database_name
 DB_USER=<database_username>
 DB_PW=<database_password>
 DB_HOST=<database_host>
+DB_PORT=<database_port>
 ```
