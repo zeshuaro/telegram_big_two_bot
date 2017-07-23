@@ -154,13 +154,15 @@ def start(bot, update):
 def help(bot, update):
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
+    keyboard = [[InlineKeyboardButton("Rate me", "https://t.me/storebot?start=biggytwobot")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     message = _("Add me into a group and type /startgame to start a game. Other players can then type /join to join "
                 "the game.\n\nYou will not be able to start or join a game if a game has already been set up and "
                 "running.\n\nYou can only force to stop a game if you are a group admin.\n\nUse /command to get a "
                 "list of commands to see what I can do.")
 
-    bot.sendMessage(player_tele_id, message)
+    bot.sendMessage(player_tele_id, message, reply_markup=reply_markup)
 
 
 # Sends command message
