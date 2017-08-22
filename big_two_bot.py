@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-import dotenv
 import gettext
-import langdetect
 import logging
 import os
 import random
 import re
 import smtplib
-import psycopg2
 import urllib.parse
-
 from collections import defaultdict
 
+import dotenv
+import langdetect
+import psycopg2
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, Unauthorized
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 from telegram.ext.dispatcher import run_async
 
-from big_two_game import Card, Deck, get_cards_type, is_bigger
+from bigtwogame.bigtwogame import Card, Deck, get_cards_type, are_cards_bigger
 
 # Enable logging
 logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %I:%M:%S %p',
@@ -941,7 +940,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
             (curr_player != player_in_control and len(prev_cards) != 0 and len(prev_cards) != len(use_cards)):
         valid = False
 
-    if valid and curr_player != player_in_control and not is_bigger(prev_cards, use_cards):
+    if valid and curr_player != player_in_control and not are_cards_bigger(prev_cards, use_cards):
         bigger = False
 
     if not valid:

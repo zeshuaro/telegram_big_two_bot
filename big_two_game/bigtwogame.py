@@ -1,136 +1,94 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+import pydealer
 import random
-
 from collections import Counter
 
 from card_type import *
+from player import Player
 
 
-class Card:
-    def __init__(self, suit, num):
-        if suit not in range(4):
-            raise ValueError("Suit must be int from 0 to 3")
+class BigTwoGame:
+    def __init__(self, player_details, group_tele_id=0):
+        self.group_tele_id = group_tele_id
+        self.game_round = 0
+        self.count_pass = 0
+        self.prev_cards = pydealer.Stack()
+        self.players = []
 
-        if num not in range(3, 16):
-            raise ValueError("Num must be int from 3 to 15")
+        deck = pydealer.Deck(ranks=pydealer.BIG2_RANKS)
+        deck.shuffle()
+        random.shuffle(player_details)
 
-        # 0: ♦, 1: ♣, 2: ♥, 3: ♠
-        self.suit = int(suit)
-        self.num = int(num)
+        for i, player_detail in enumerate(player_details):
+            player_tele_id, player_name = player_detail
+            player = Player(player_tele_id, player_name, i)
 
-        if self.suit == 0:
-            self.show_suit = "♦"
-        elif self.suit == 1:
-            self.show_suit = "♣"
-        elif self.suit == 2:
-            self.show_suit = "♥"
-        else:
-            self.show_suit = "♠"
+            cards = deck.deal(13)
+            player.cards.insert_list(cards)
+            self.players.append(player)
 
-        if self.num == 11:
-            self.show_num = "J"
-        elif self.num == 12:
-            self.show_num = "Q"
-        elif self.num == 13:
-            self.show_num = "K"
-        elif self.num == 14:
-            self.show_num = "A"
-        elif self.num == 15:
-            self.show_num = "2"
-        else:
-            self.show_num = self.num
+            if cards.find("3D"):
+                self.curr_player = i
+                self.biggest_player = i
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        elif self.suit == other.suit and self.num == other.num:
-            return True
-        else:
-            return False
-
-    def __lt__(self, other):
-        if self.num == other.num:
-            if self.suit < other.suit:
+    def is_game_over(self):
+        for player in self.players:
+            if player.cards.size == 0:
                 return True
-            else:
-                return False
-        elif self.num < other.num:
-            return True
-        else:
-            return False
+        return False
 
 
-class Deck:
-    def __init__(self):
-        self.cards = []
-
-        for i in range(0, 4):
-            for j in range(3, 16):
-                self.cards.append(Card(i, j))
-
-        random.shuffle(self.cards)
-
-
-class Player:
-    def __init__(self, cards):
-        self.cards = cards
-
-    def show_cards(self):
-        i = 0
-        for card in self.cards:
-            print("%d:\t%s %s\n" % (i, card.show_suit, card.show_num))
-            i += 1
+def suit_unicode(suit):
+    if suit == "Diamonds":
+        return "♦"
+    elif suit == "Clubs":
+        return "♣"
+    elif suit == "Hearts":
+        return "♥"
+    else:
+        return "♠"
 
 
-# Checks if game is finished
-def is_game_over(players):
-    for player in players:
-        if len(player.cards) == 0:
-            return True
-
-    return False
-
-
-# Returns the type of the given cards
 def get_cards_type(cards):
-    cards.sort()
+    cards.sort(ranks=pydealer.BIG2_RANKS)
+    # cards.sort()
     cards_type = -1
     suits = set()
-    nums = []
+    values = []
 
     for card in cards:
         suits.add(card.suit)
-        nums.append(card.num)
+        values.append(card.value)
 
-    if len(cards) == 13:
+    if cards.size == 13:
         # Checks for dragon
-        if sorted(nums) == list(range(min(nums), max(nums) + 1)):
+        if sorted(values) == list(range(min(values), max(values) + 1)):
             if len(suits) == 1:
                 cards_type = SAME_SUIT_DRAGON
             else:
                 cards_type = DRAGON
 
-    elif len(cards) == 5:
+    elif cards.size == 5:
         # Checks for same suit
         if len(suits) == 1:
             # Checks for A 2 3 4 5
-            if cards[0].num == 3 and cards[1].num == 4 and cards[2].num == 5 and cards[3].num == 14 and \
-                    cards[4].num == 15:
+            if cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 14 and \
+                    cards[4].value == 15:
                 cards_type = STRAIGHT_FLUSH
 
             # Checks for 2 3 4 5 6
-            elif cards[0].num == 3 and cards[1].num == 4 and cards[2].num == 5 and cards[3].num == 6 and \
-                    cards[4].num == 15:
+            elif cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 6 and \
+                    cards[4].value == 15:
                 cards_type = STRAIGHT_FLUSH
 
-            elif sorted(nums) == list(range(min(nums), max(nums) + 1)):
+            elif sorted(values) == list(range(min(values), max(values) + 1)):
                 cards_type = STRAIGHT_FLUSH
             else:
                 cards_type = FLUSH
         else:
-            num_counter = Counter(nums)
+            num_counter = Counter(values)
 
             if len(num_counter) == 2:
                 for num in num_counter.keys():
@@ -144,27 +102,27 @@ def get_cards_type(cards):
             # Checks for straight
             else:
                 # Checks for A 2 3 4 5
-                if cards[0].num == 3 and cards[1].num == 4 and cards[2].num == 5 and cards[3].num == 14 and \
-                        cards[4].num == 15:
+                if cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 14 and \
+                        cards[4].value == 15:
                     cards_type = STRAIGHT
 
                 # Checks for 2 3 4 5 6
-                elif cards[0].num == 3 and cards[1].num == 4 and cards[2].num == 5 and cards[3].num == 6 and \
-                        cards[4].num == 15:
+                elif cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 6 and \
+                        cards[4].value == 15:
                     cards_type = STRAIGHT
 
-                elif sorted(nums) == list(range(min(nums), max(nums) + 1)):
+                elif sorted(values) == list(range(min(values), max(values) + 1)):
                         cards_type = STRAIGHT
 
-    elif len(cards) == 3:
-        if cards[0].num == cards[1].num and cards[1].num == cards[2].num:
+    elif cards.size == 3:
+        if cards[0].value == cards[1].value and cards[1].value == cards[2].value:
             cards_type = THREE_OF_A_KIND
 
-    elif len(cards) == 2:
-        if cards[0].num == cards[1].num:
+    elif cards.size == 2:
+        if cards[0].value == cards[1].value:
             cards_type = PAIR
 
-    elif len(cards) == 1:
+    elif cards.size == 1:
         cards_type = SINGLE
 
     return cards_type
@@ -172,13 +130,13 @@ def get_cards_type(cards):
 
 # Returns if currCards is greater than prevCards
 # Also checks if currCards have the same num of cards with prevCards
-def is_bigger(prev_cards, curr_cards):
-    prev_cards.sort()
-    curr_cards.sort()
-    bigger = False
+def are_cards_bigger(prev_cards, curr_cards):
+    prev_cards.sort(ranks=pydealer.BIG2_RANKS)
+    curr_cards.sort(ranks=pydealer.BIG2_RANKS)
+    is_bigger = False
 
     if len(prev_cards) == 0:
-        bigger = True
+        is_bigger = True
     elif len(prev_cards) == len(curr_cards):
         prev_cards_type = get_cards_type(prev_cards)
         curr_cards_type = get_cards_type(curr_cards)
@@ -186,17 +144,17 @@ def is_bigger(prev_cards, curr_cards):
         # Checks for 5 cards
         if prev_cards_type in range(4, 9) and curr_cards_type in range(4, 9):
             if curr_cards_type > prev_cards_type:
-                bigger = True
+                is_bigger = True
 
             # Checks for bigger straight flush
             elif prev_cards_type == 8 and curr_cards_type == 8:
                 # Bigger suit, ie bigger straight flush
                 if curr_cards[0].suit > prev_cards[0].suit:
-                    bigger = True
+                    is_bigger = True
 
                 # Same suit, checks for bigger num
-                elif curr_cards[4].num > prev_cards[4].num:
-                    bigger = True
+                elif curr_cards[4].value > prev_cards[4].value:
+                    is_bigger = True
 
             # Checks for bigger four of a kind
             elif prev_cards_type == 7 and curr_cards_type == 7:
@@ -205,22 +163,22 @@ def is_bigger(prev_cards, curr_cards):
                 nums = []
 
                 for card in prev_cards:
-                    if card.num in nums:
-                        prev_num = card.num
+                    if card.value in nums:
+                        prev_num = card.value
                         break
 
-                    nums.append(card.num)
+                    nums.append(card.value)
 
                 del nums[:]
                 for card in curr_cards:
-                    if card.num in nums:
-                        curr_num = card.num
+                    if card.value in nums:
+                        curr_num = card.value
                         break
 
-                    nums.append(card.num)
+                    nums.append(card.value)
 
                 if curr_num > prev_num:
-                    bigger = True
+                    is_bigger = True
 
             # Checks for bigger full house
             elif prev_cards_type == 6 and curr_cards_type == 6:
@@ -230,10 +188,10 @@ def is_bigger(prev_cards, curr_cards):
                 curr_num = 0
 
                 for card in prev_cards:
-                    prev_nums.append(card.num)
+                    prev_nums.append(card.value)
 
                 for card in curr_cards:
-                    curr_nums.append(card.num)
+                    curr_nums.append(card.value)
 
                 prev_nums = Counter(prev_nums)
                 curr_nums = Counter(curr_nums)
@@ -249,16 +207,16 @@ def is_bigger(prev_cards, curr_cards):
                         break
 
                 if curr_num > prev_num:
-                    bigger = True
+                    is_bigger = True
 
             # Checks for bigger flush
             elif prev_cards_type == 5 and curr_cards_type == 5:
                 if curr_cards[0].suit > prev_cards[0].suit:
-                    bigger = True
+                    is_bigger = True
                 else:
                     for i in range(4, -1, -1):
-                        if curr_cards[i].num > prev_cards[i].num:
-                            bigger = True
+                        if curr_cards[i].value > prev_cards[i].value:
+                            is_bigger = True
                             break
 
             # Checks for bigger straight
@@ -266,25 +224,25 @@ def is_bigger(prev_cards, curr_cards):
                 all_same = True
 
                 for i in range(4, -1, -1):
-                    if curr_cards[i].num > prev_cards[i].num:
-                        bigger = True
+                    if curr_cards[i].value > prev_cards[i].value:
+                        is_bigger = True
                         break
-                    if curr_cards[i].num != prev_cards[i].num:
+                    if curr_cards[i].value != prev_cards[i].value:
                         all_same = False
 
-                if not bigger and all_same:
+                if not is_bigger and all_same:
                     if curr_cards[4].suit > prev_cards[4].suit:
-                        bigger = True
+                        is_bigger = True
 
         # Checks for bigger three of a kind
         elif prev_cards_type == 3 and curr_cards_type == 3:
-            if curr_cards[0].num > prev_cards[0].num:
-                bigger = True
+            if curr_cards[0].value > prev_cards[0].value:
+                is_bigger = True
 
         # Checks for bigger pair
         elif prev_cards_type == 2 and curr_cards_type == 2:
-            if curr_cards[0].num > prev_cards[0].num:
-                bigger = True
+            if curr_cards[0].value > prev_cards[0].value:
+                is_bigger = True
             else:
                 if prev_cards[0].suit > prev_cards[1].suit:
                     prev_suit = prev_cards[0].suit
@@ -297,56 +255,39 @@ def is_bigger(prev_cards, curr_cards):
                     curr_suit = curr_cards[1].suit
 
                 if curr_suit > prev_suit:
-                    bigger = True
+                    is_bigger = True
 
         # Checks for bigger single
         elif prev_cards_type == 1 and curr_cards_type == 1:
-            if curr_cards[0].num > prev_cards[0].num:
-                bigger = True
-            elif curr_cards[0].num == prev_cards[0].num:
+            if curr_cards[0].value > prev_cards[0].value:
+                is_bigger = True
+            elif curr_cards[0].value == prev_cards[0].value:
                 if curr_cards[0].suit > prev_cards[0].suit:
-                    bigger = True
+                    is_bigger = True
 
-    return bigger
+    return is_bigger
 
 
 def main():
-    deck = Deck()
+    game = BigTwoGame([(x, "Player") for x in range(4)])
 
-    # Sets up players
-    curr_player = -1
-    players = []
-    for i in range(0, 4):
-        player_deck = []
-
-        for j in range(0, 13):
-            card = deck.cards.pop()
-            player_deck.append(card)
-
-            # Player with ♦3 starts first
-            if card.suit == 0 and card.num == 3:
-                curr_player = i
-
-        player_deck.sort()
-        players.append(Player(player_deck))
-
-    game_round = 1
-    player_in_control = -1
-    prev_cards = []
-
-    while not is_game_over(players):
+    while not game.is_game_over():
         print("----------------------------------------")
-        print("Round %d" % game_round)
-        print("Player %d's Turn" % curr_player)
+        print("Round %d" % game.game_round)
+        print("Player %d's Turn" % game.curr_player)
         print("----------------------------------------")
 
         valid = True
         first = True
         bigger = True
         passed = False
-        use_cards = []
+        use_cards = pydealer.Stack()
 
         while not valid or first or not bigger:
+            if use_cards:
+                for card in use_cards:
+                    game.players[game.curr_player].cards.add(card)
+
             if not bigger:
                 print("----------------------------------------")
                 print("Your cards are not bigger than prev")
@@ -356,18 +297,20 @@ def main():
                 print("Invalid Input. Please Try again.")
                 print("----------------------------------------")
 
-            if game_round > 1:
+            if game.game_round >= 1:
                 print("Last player's cards")
-                for card in prev_cards:
-                    print("%s %s" % (card.show_suit, card.show_num))
+                for card in game.prev_cards:
+                    print("%s %s" % (suit_unicode(card.suit), card.value))
                 print("----------------------------------------")
 
-            use_cards = []
+            use_cards = pydealer.Stack()
             valid = True
             first = False
 
             print("Your deck of cards:")
-            players[curr_player].show_cards()
+            game.players[game.curr_player].cards.sort(ranks=pydealer.BIG2_RANKS)
+            for i, card in enumerate(game.players[game.curr_player].cards):
+                print("%d: %s %s" % (i, suit_unicode(card.suit), card.value))
             print()
 
             print("Please enter the id of the cards that you would like to use")
@@ -384,34 +327,33 @@ def main():
             for num in nums:
                 num = int(num)
 
-                if num not in range(0, len(players[curr_player].cards)):
+                if num not in range(0, game.players[game.curr_player].cards.size):
                     print(num)
                     valid = False
                     break
                 else:
-                    card = players[curr_player].cards[num]
-                    use_cards.append(card)
+                    card = game.players[game.curr_player].cards.get(num)
+                    use_cards.add(card)
 
-            use_cards.sort()
+            # use_cards.sort()
             if valid and get_cards_type(use_cards) == -1:
                 valid = False
 
-            if (valid and curr_player != player_in_control and
-                    not is_bigger(prev_cards, use_cards)):
+            if (valid and game.curr_player != game.biggest_player and
+                    not are_cards_bigger(game.prev_cards, use_cards)):
                 bigger = False
             else:
                 bigger = True
 
         if not passed:
-            prev_cards = []
+            game.prev_cards = pydealer.Stack()
 
         for card in use_cards:
-            player_in_control = curr_player
-            players[curr_player].cards.remove(card)
-            prev_cards.append(card)
+            game.biggest_player = game.curr_player
+            game.prev_cards.add(card)
 
-        game_round += 1
-        curr_player = (curr_player + 1) % 4
+        game.game_round += 1
+        game.curr_player = (game.curr_player + 1) % 4
 
 
 if __name__ == '__main__':
