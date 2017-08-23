@@ -3,7 +3,7 @@
 import random
 import unittest
 
-import card_type as ct
+import card_types as ct
 from game import big_two_game as bt
 
 num_tests = 100

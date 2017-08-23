@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
-
 import pydealer
 
 from collections import Counter
 
-from card_type import *
+from card_types import *
 
 
 def suit_unicode(suit):

@@ -1,25 +1,32 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+import dotenv
 import gettext
+import langdetect
 import logging
 import os
+import pydealer
 import random
 import re
 import smtplib
-import urllib.parse
+
 from collections import defaultdict
 
-import dotenv
-import langdetect
-import psycopg2
 from sqlalchemy import create_engine
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from sqlalchemy.orm import sessionmaker
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Chat, ChatMember
 from telegram.error import TelegramError, Unauthorized
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 from telegram.ext.dispatcher import run_async
 
-from game.bigtwogame import Card, Deck, get_cards_type, are_cards_bigger
+import base
+from languages import Language
+from group_settings import GroupSetting
+from cards import suit_unicode, get_cards_type, are_cards_bigger
+from game import Game
+from player import Player
 
 # Enable logging
 logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %I:%M:%S %p',
@@ -39,101 +46,62 @@ dev_email_pw = os.environ.get("DEV_EMAIL_PW")
 is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
 
-if os.environ.get("DATABASE_URL"):
-    urllib.parse.uses_netloc.append("postgres")
-    url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
-
-    db_name = url.path[1:]
-    db_user = url.username
-    db_pw = url.password
-    db_host = url.hostname
-    db_port = url.port
-else:
-    db_name = os.environ.get("DB_NAME")
-    db_user = os.environ.get("DB_USER")
-    db_pw = os.environ.get("DB_PW")
-    db_host = os.environ.get("DB_HOST")
-    db_port = os.environ.get("DB_PORT")
-
-engine =  create_engine("postgresql://localhost/joshua", echo=True)
+engine =  create_engine(os.environ.get("DATABASE_URL"))
+Player.__table__.drop(engine)
+Game.__table__.drop(engine)
+base.Base.metadata.create_all(engine, checkfirst=True)
+Session = sessionmaker(bind=engine)
+session = Session()
 
 # Queued jobs
 queued_jobs = defaultdict(dict)
 
 
-# Connects to database
-def connect_db():
-    return psycopg2.connect(database=db_name, user=db_user, password=db_pw, host=db_host, port=db_port)
+def main():
+    # Create the EventHandler and pass it your bot's token.
+    updater = Updater(telegram_token)
 
+    # Get the dispatcher to register handlers
+    dp = updater.dispatcher
+    # on different commands - answer in Telegram
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("help", help))
+    dp.add_handler(CommandHandler("command", command))
+    dp.add_handler(CommandHandler("donate", donate))
+    dp.add_handler(CommandHandler("setlang", set_lang))
+    dp.add_handler(CommandHandler("setjointimer", set_join_timer, pass_args=True))
+    dp.add_handler(CommandHandler("setpasstimer", set_pass_timer, pass_args=True))
+    dp.add_handler(CommandHandler("startgame", start_game, pass_job_queue=True, pass_chat_data=True))
+    dp.add_handler(CommandHandler("join", join, pass_job_queue=True, pass_chat_data=True))
+    dp.add_handler(CommandHandler("forcestop", force_stop))
+    dp.add_handler(CommandHandler("showdeck", show_deck))
+    dp.add_handler(feedback_cov_handler())
+    dp.add_handler(CommandHandler("send", send, pass_args=True))
+    dp.add_handler(CommandHandler("status", status))
+    dp.add_handler(CallbackQueryHandler(in_line_button, pass_job_queue=True))
 
-# Creates database tables
-def create_db_tables():
-    db = connect_db()
-    cur = db.cursor()
+    # log all errors
+    dp.add_error_handler(error)
 
-    cur.execute("select * from information_schema.tables where table_name = 'user_language'")
-    if not cur.fetchone():
-        # cur.execute("drop table user_language")
-        cur.execute("create table user_language (tele_id int, language text)")
+    # Start the Bot
+    if app_url:
+        updater.start_webhook(listen="0.0.0.0",
+                              port=port,
+                              url_path=telegram_token)
+        updater.bot.set_webhook(app_url + telegram_token)
+    else:
+        updater.start_polling()
 
-    cur.execute("select * from information_schema.tables where table_name = 'game_timer'")
-    if not cur.fetchone():
-        # cur.execute("drop table user_language")
-        cur.execute("create table game_timer (group_tele_id int, join_timer int, pass_timer int)")
-
-    cur.execute("select * from information_schema.tables where table_name = 'player_group'")
-    if cur.fetchone():
-        cur.execute("drop table player_group")
-    cur.execute("create table player_group (player_tele_id int, group_tele_id int)")
-
-    cur.execute("select * from information_schema.tables where table_name = 'game'")
-    if cur.fetchone():
-        cur.execute("drop table game")
-    cur.execute("create table game (group_tele_id int, game_round int, curr_player int, player_in_control int, "
-                "count_pass int)")
-
-    cur.execute("select * from information_schema.tables where table_name = 'player'")
-    if cur.fetchone():
-        cur.execute("drop table player")
-    cur.execute("create table player (group_tele_id int, player_id int, player_tele_id int, player_name text, "
-                "num_cards int)")
-
-    cur.execute("select * from information_schema.tables where table_name = 'player_deck'")
-    if cur.fetchone():
-        cur.execute("drop table player_deck")
-    cur.execute("create table player_deck (group_tele_id int, player_id int, suit int, num int)")
-
-    cur.execute("select * from information_schema.tables where table_name = 'curr_card'")
-    if cur.fetchone():
-        cur.execute("drop table curr_card")
-    cur.execute("create table curr_card (group_tele_id int, suit int, num int)")
-
-    cur.execute("select * from information_schema.tables where table_name = 'prev_card'")
-    if cur.fetchone():
-        cur.execute("drop table prev_card")
-    cur.execute("create table prev_card (group_tele_id int, suit int, num int)")
-
-    db.commit()
-    db.close()
+    # Run the bot until the you presses Ctrl-C or the process receives SIGINT,
+    # SIGTERM or SIGABRT. This should be used most of the time, since
+    # start_polling() is non-blocking and will stop the bot gracefully.
+    updater.idle()
 
 
 # Deletes game data with the given group telegram ID
 def delete_game_data(group_tele_id):
-    for key in queued_jobs[group_tele_id].keys():
-        queued_jobs[group_tele_id][key].schedule_removal()
-
-    db = connect_db()
-    cur = db.cursor()
-
-    cur.execute("delete from player_group where group_tele_id = %s", (group_tele_id,))
-    cur.execute("delete from game where group_tele_id = %s", (group_tele_id,))
-    cur.execute("delete from player where group_tele_id = %s", (group_tele_id,))
-    cur.execute("delete from player_deck where group_tele_id = %s", (group_tele_id,))
-    cur.execute("delete from curr_card where group_tele_id = %s", (group_tele_id,))
-    cur.execute("delete from prev_card where group_tele_id = %s", (group_tele_id,))
-
-    db.commit()
-    db.close()
+    session.query(Game).filter(Game.group_tele_id == group_tele_id).delete()
+    session.commit()
 
 
 # Sends start message
@@ -230,49 +198,35 @@ def set_lang(bot, update):
 
 # Sets join timer
 @run_async
-def set_join_timer(bot, update):
-    set_game_timer(bot, update, "join_timer")
+def set_join_timer(bot, update, args):
+    print(args)
+    set_game_timer(bot, update, "join", args[0])
 
 
 # Sets pass timer
 @run_async
-def set_pass_timer(bot, update):
-    set_game_timer(bot, update, "pass_timer")
+def set_pass_timer(bot, update, args):
+    set_game_timer(bot, update, "pass", args[0])
 
 
 # Sets game timer
-def set_game_timer(bot, update, timer_type):
+def set_game_timer(bot, update, timer_type, timer):
     group_tele_id = update.message.chat.id
     player_tele_id = update.message.from_user.id
-    timer = re.sub("/.*?\s+", "", update.message.text)
     install_lang(player_tele_id)
 
-    if update.message.chat.type != "group":
+    if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
         message = _("You can only use this command in a group")
         bot.sendMessage(player_tele_id, message)
         return
 
-    is_admin = False
-    admins = bot.getChatAdministrators(group_tele_id)
-
-    for admin in admins:
-        if admin.user.id == player_tele_id:
-            is_admin = True
-            break
-
-    if not is_admin:
-        message = _("You are not a group admin")
-        bot.sendMessage(player_tele_id, message)
+    member = bot.get_chat_member(group_tele_id, player_tele_id)
+    if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.CREATOR):
+        bot.sendMessage(player_tele_id, _("You are not a group admin"))
         return
 
-    db = connect_db()
-    cur = db.cursor()
-
-    cur.execute("select * from game where group_tele_id = %s", (group_tele_id,))
-    if cur.fetchone():
-        message = _("You can only change the timer when a game is not running")
-        bot.sendMessage(player_tele_id, message)
-        db.close()
+    if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+        bot.sendMessage(player_tele_id, _("You can only change the timer when a game is not running"))
         return
 
     install_lang(group_tele_id)
@@ -284,64 +238,60 @@ def set_game_timer(bot, update, timer_type):
         else:
             message = _("Pass timer can only be set between 20s to 120s")
         bot.sendMessage(group_tele_id, message)
-        db.close()
         return
 
     timer = int(timer)
-    cur.execute("select * from game_timer where group_tele_id = %s", (group_tele_id,))
-    if cur.fetchone():
-        query = "update game_timer set %s = %s where group_tele_id = %s" % (timer_type, timer, group_tele_id)
-        cur.execute(query)
+    group_settings = session.query(GroupSetting).filter(GroupSetting.group_tele_id == group_tele_id).first()
+
+    if group_settings:
+        if timer_type == "join":
+            group_settings.join_timer = timer
+        else:
+            group_settings.pass_timer = timer
     else:
-        query = "insert into game_timer (group_tele_id, %s) values (%s, %s)" % (timer_type, group_tele_id, timer)
-        cur.execute(query)
+        if timer_type == "join":
+            group_settings = GroupSetting(group_tele_id=group_tele_id, join_timer=timer)
+        else:
+            group_settings = GroupSetting(group_tele_id=group_tele_id, pass_timer=timer)
+        session.add(group_settings)
+    session.commit()
 
-    db.commit()
-    db.close()
-
-    if timer_type == "join_timer":
+    if timer_type == "join":
         bot.send_message(group_tele_id, _("Join timer has been set to %ds") % timer)
     else:
         bot.send_message(group_tele_id, _("Pass timer has been set to %ds") % timer)
 
 
 # Starts a new game
-def start_game(bot, update, job_queue):
+def start_game(bot, update, job_queue, chat_data):
     group_tele_id = update.message.chat.id
     player_name = update.message.from_user.first_name
     install_lang(update.message.from_user.id)
 
-    if update.message.chat.type != "group":
-        message = _("You can only use this command in a group")
-        bot.sendMessage(group_tele_id, message)
+    if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
+        bot.sendMessage(group_tele_id, _("You can only use this command in a group"))
         return
 
     if not can_msg_player(bot, update):
         return
 
-    db = connect_db()
-    cur = db.cursor()
-
-    cur.execute("select * from game where group_tele_id = %s", (group_tele_id,))
-    if cur.fetchone():
-        message = _("A game has already been started")
-        bot.sendMessage(update.message.from_user.id, message)
-        db.close()
+    if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+        bot.sendMessage(update.message.from_user.id, _("A game has already been started"))
         return
 
-    cur.execute("insert into game (group_tele_id, game_round, curr_player, player_in_control, count_pass)"
-                "values (%s, %s, %s, %s, %s)", (group_tele_id, -1, -1, -1, -1))
-    db.commit()
-    db.close()
+    game = Game(group_tele_id=group_tele_id, game_round=1, curr_player=-1, biggest_player=-1, count_pass=0,
+                prev_cards=pydealer.Stack())
+    session.add(game)
+    session.commit()
 
     install_lang(group_tele_id)
-    message = (_("[%s] has started Big Two. Type /join to join the game\n\n") % player_name)
+    text = _("[%s] has started Big Two. Type /join to join the game\n\n" % player_name)
 
     bot.sendMessage(chat_id=group_tele_id,
-                    text=message,
+                    text=text,
                     disable_notification=True)
 
-    join(bot, update, job_queue)
+    join(bot, update, job_queue, chat_data)
 
 
 # Checks if bot is authorised to send user messages
@@ -376,154 +326,123 @@ def can_msg_player(bot, update):
 
 
 # Joins a new game
-def join(bot, update, job_queue):
+def join(bot, update, job_queue, chat_data):
     player_name = update.message.from_user.first_name
     player_tele_id = update.message.from_user.id
     group_name = update.message.chat.title
     group_tele_id = update.message.chat.id
-    id_list = [player_tele_id]
 
     install_lang(player_tele_id)
 
-    if update.message.chat.type != "group":
-        message = _("You can only use this command in a group")
-        bot.sendMessage(player_tele_id, message)
+    if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
+        bot.sendMessage(player_tele_id, _("You can only use this command in a group"))
         return
 
     if not can_msg_player(bot, update):
         return
 
-    db = connect_db()
-    cur = db.cursor()
-
     # Checks if there exists a game
-    cur.execute("select * from game where group_tele_id = %s", (group_tele_id,))
-    if not cur.fetchone():
-        message = _("A game has not been started yet. Type /startgame in a group to start a game.")
-        bot.sendMessage(player_tele_id, message)
+    if not session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+        text = _("A game has not been started yet. Type /startgame in a group to start a game.")
+        bot.sendMessage(player_tele_id, text)
         return
 
     # Checks if player is in game
     if not is_testing:
-        cur.execute("select * from player_group where player_tele_id = %s", (player_tele_id,))
-        if cur.fetchone():
-            message = _("You have already joined a game")
-            bot.sendMessage(player_tele_id, message)
-            db.close()
+        if session.query(Player).filter(Player.player_tele_id == player_tele_id).first():
+            bot.sendMessage(player_tele_id, _("You have already joined a game"))
             return
 
-    cur.execute("select player_tele_id from player_group where group_tele_id = %s", (group_tele_id,))
-    for row in cur.fetchall():
-        id_list.append(row[0])
-    num_players = len(id_list)
+    num_players = session.query(Player).filter(Player.group_tele_id == group_tele_id).count()
 
     # Checks for valid number of players
-    if num_players <= 4:
-        cur.execute("insert into player_group (player_tele_id, group_tele_id)"
-                    "values (%s, %s)", (player_tele_id, group_tele_id))
-        cur.execute("insert into player (group_tele_id, player_id, player_tele_id, player_name, num_cards)"
-                    "values (%s, %s, %s, %s, %s)", (group_tele_id, (num_players - 1), player_tele_id, player_name, 13))
-        db.commit()
+    if num_players < 4:
+        player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
+                        player_id=num_players, cards=pydealer.Stack())
+        session.add(player)
+        session.commit()
+        num_players += 1
 
         install_lang(group_tele_id)
-        message = (_("[%s] has joined.\nThere are now %d/4 Players\n") % (player_name, num_players))
+        text = (_("[%s] has joined.\nThere are now %d/4 Players\n") % (player_name, num_players))
 
-        if "join" in queued_jobs[group_tele_id]:
-            queued_jobs[group_tele_id]["join"].schedule_removal()
+        if "queued_job" in chat_data:
+            chat_data["queued_job"].schedule_removal()
 
-        cur.execute("select join_timer from game_timer where group_tele_id = %s", (group_tele_id,))
-        row = cur.fetchone()
-        db.close()
-
-        join_timer = row[0] if row and row[0] else 60
-        job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
-        queued_jobs[group_tele_id]["join"] = job
+        group_settings = session.query(GroupSetting).filter(GroupSetting.group_tele_id == group_tele_id).first()
+        join_timer = group_settings.join_timer if group_settings and group_settings.join_timer else 60
 
         if num_players != 4:
-            message += _("%ss left to join") % join_timer
+            job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
+            queued_jobs[group_tele_id]["join"] = job
+            text += _("%ss left to join") % join_timer
+
         bot.sendMessage(chat_id=group_tele_id,
-                        text=message,
+                        text=text,
                         disable_notification=True)
 
         install_lang(player_tele_id)
-        message = (_("You have joined the game in the group [%s]") % group_name)
-        bot.send_message(player_tele_id, message)
+        bot.send_message(player_tele_id, _("You have joined the game in the group [%s]") % group_name)
 
         if num_players == 4:
-            queued_jobs[group_tele_id]["join"].schedule_removal()
             install_lang(group_tele_id)
-            message = _("Enough players, game start. I will PM your deck of cards when it is your turn. ")
+            text = _("Enough players, game start. I will PM your deck of cards when it is your turn. ")
 
-            db = connect_db()
-            cur = db.cursor()
-            cur.execute("select pass_timer from game_timer where group_tele_id = %s", (group_tele_id,))
-            row = cur.fetchone()
-            db.close()
-            if row is None:
-                message += _("Each player has 45s to pick your cards")
+            if group_settings and group_settings.pass_timer:
+                text += _("Each player has %ss to pick your cards") % group_settings.pass_timer
             else:
-                pass_timer = row[0]
-                message += _("Each player has %ss to pick your cards") % pass_timer
+                text += _("Each player has 45s to pick your cards")
 
             bot.sendMessage(chat_id=group_tele_id,
-                            text=message,
+                            text=text,
                             disable_notification=True)
 
-            setup_game(group_tele_id, id_list)
+            setup_game(group_tele_id)
             game_message(bot, group_tele_id)
             player_message(bot, group_tele_id, False, 0, False, job_queue)  # Not edit and not sort suit
-
-    db.close()
 
 
 # Stops a game without enough players
 def stop_empty_game(bot, job):
     group_tele_id = job.context
     install_lang(group_tele_id)
-    message = _("Game has been stopped by me since there is no enough players.")
-    bot.send_message(group_tele_id, message)
+    bot.send_message(group_tele_id, _("Game has been stopped by me since there is no enough players."))
 
     delete_game_data(group_tele_id)
 
 
 # Sets up a game
-def setup_game(group_tele_id, tele_ids):
-    db = connect_db()
-    cur = db.cursor()
-
+def setup_game(group_tele_id):
+    tele_ids = session.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
     if not is_testing:
         random.shuffle(tele_ids)
 
     # Creates a deck of cards in random order
-    deck = Deck()
+    deck = pydealer.Deck(ranks=pydealer.BIG2_RANKS)
+    deck.shuffle()
 
     # Sets up players
     curr_player = -1
 
     for i, tele_id in enumerate(tele_ids):
-        player_deck = []
+        player_cards = pydealer.Stack(cards=deck.deal(13))
+        player_cards.sort(ranks=pydealer.BIG2_RANKS)
 
-        for j in range(0, 13):
-            card = deck.cards.pop()
-            player_deck.append(card)
+        # Player with ♦3 starts first
+        if player_cards.find("3D"):
+            curr_player = i
 
-            # Player with ♦3 starts first
-            if card.suit == 0 and card.num == 3:
-                curr_player = i
+        player = session.query(Player). \
+            filter(Player.group_tele_id == group_tele_id, Player.player_tele_id == tele_id).first()
 
-        player_deck.sort()
         if not is_testing:
-            cur.execute("update player set player_id = %s where group_tele_id = %s and player_tele_id = %s",
-                        (i, group_tele_id, tele_id))
+            player.player_id = i
+        player.cards = player_cards
 
-        for card in player_deck:
-            cur.execute("insert into player_deck (group_tele_id, player_id, suit, num)"
-                        "values (%s, %s, %s, %s)", (group_tele_id, i, card.suit, card.num))
-
-    cur.execute("update game set game_round = %s, curr_player = %s, player_in_control = %s, count_pass = %s "
-                "where group_tele_id = %s", (1, curr_player, curr_player, 0, group_tele_id))
-    db.commit()
-    db.close()
+    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    game.curr_player = curr_player
+    game.biggest_player = curr_player
+    session.commit()
 
 
 # Sends message to game group
@@ -870,19 +789,16 @@ def in_line_button(bot, update, job_queue):
 
 # Changes the default language of a player/group
 def change_lang(bot, tele_id, message_id, data):
-    lang = re.sub(".*,", "", data)
-    db = connect_db()
-    cur = db.cursor()
+    new_language = data.split(",")[1]
+    language = session.query(Language).filter(Language.tele_id == tele_id).first()
 
-    cur.execute("select * from user_language where tele_id = %s", (tele_id,))
-    if cur.fetchone():
-        cur.execute("update user_language set language = %s where tele_id = %s", (lang, tele_id))
+    if language:
+        language.language = new_language
     else:
-        cur.execute("insert into user_language (tele_id, language) values (%s, %s)", (tele_id, lang))
+        language = Language(tele_id=tele_id, language=language)
+        session.add(language)
 
-    db.commit()
-    db.close()
-
+    session.commit()
     install_lang(tele_id)
     bot.editMessageText(text=_("Default language has been set"),
                         chat_id=tele_id,
@@ -1125,20 +1041,15 @@ def stop_idle_game(bot, group_tele_id):
 
 # Installs the language
 def install_lang(tele_id):
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("select language from user_language where tele_id = %s", (tele_id,))
-    cursor = cur.fetchone()
-
-    if cursor is None:
-        es = gettext.translation("big_two_text", localedir="locale", languages=["en"])
-        es.install()
+    language = session.query(Language).filter(Language.tele_id == tele_id).first()
+    if language:
+        es = gettext.translation("big_two_text", localedir="locale", languages=[language.language])
     else:
-        lang = cursor[0]
-        es = gettext.translation("big_two_text", localedir="locale", languages=[lang])
-        es.install()
-
-    db.close()
+        language = Language(tele_id=tele_id, language="en")
+        session.add(language)
+        session.commit()
+        es = gettext.translation("big_two_text", localedir="locale", languages=["en"])
+    es.install()
 
 
 # Creates a feedback conversation handler
@@ -1244,49 +1155,6 @@ def status(bot, update):
 
 def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"' % (update, error))
-
-
-def main():
-    create_db_tables()
-
-    # Create the EventHandler and pass it your bot's token.
-    updater = Updater(telegram_token)
-
-    # Get the dispatcher to register handlers
-    dp = updater.dispatcher
-    # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("command", command))
-    dp.add_handler(CommandHandler("donate", donate))
-    dp.add_handler(CommandHandler("setlang", set_lang))
-    dp.add_handler(CommandHandler("setjointimer", set_join_timer))
-    dp.add_handler(CommandHandler("setpasstimer", set_pass_timer))
-    dp.add_handler(CommandHandler("startgame", start_game, pass_job_queue=True))
-    dp.add_handler(CommandHandler("join", join, pass_job_queue=True))
-    dp.add_handler(CommandHandler("forcestop", force_stop))
-    dp.add_handler(CommandHandler("showdeck", show_deck))
-    dp.add_handler(feedback_cov_handler())
-    dp.add_handler(CommandHandler("send", send, pass_args=True))
-    dp.add_handler(CommandHandler("status", status))
-    dp.add_handler(CallbackQueryHandler(in_line_button, pass_job_queue=True))
-
-    # log all errors
-    dp.add_error_handler(error)
-
-    # Start the Bot
-    if app_url:
-        updater.start_webhook(listen="0.0.0.0",
-                              port=port,
-                              url_path=telegram_token)
-        updater.bot.set_webhook(app_url + telegram_token)
-    else:
-        updater.start_polling()
-
-    # Run the bot until the you presses Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
-    updater.idle()
 
 
 if __name__ == '__main__':
