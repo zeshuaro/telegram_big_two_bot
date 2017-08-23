@@ -13,12 +13,13 @@ from collections import defaultdict
 import dotenv
 import langdetect
 import psycopg2
+from sqlalchemy import create_engine
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, Unauthorized
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 from telegram.ext.dispatcher import run_async
 
-from bigtwogame.bigtwogame import Card, Deck, get_cards_type, are_cards_bigger
+from game.bigtwogame import Card, Deck, get_cards_type, are_cards_bigger
 
 # Enable logging
 logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %I:%M:%S %p',
@@ -30,11 +31,10 @@ dotenv.load(dotenv_path)
 app_url = os.environ.get("APP_URL")
 port = int(os.environ.get('PORT', '5000'))
 
-telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA") if os.environ.get("TELEGRAM_TOKEN_BETA") \
-    else os.environ.get("TELEGRAM_TOKEN")
+telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA", os.environ.get("TELEGRAM_TOKEN"))
 is_testing = os.environ.get("IS_TESTING")
 dev_tele_id = int(os.environ.get("DEV_TELE_ID"))
-dev_email = os.environ.get("DEV_EMAIL") if os.environ.get("DEV_EMAIL") else "sample@email.com"
+dev_email = os.environ.get("DEV_EMAIL", "sample@email.com")
 dev_email_pw = os.environ.get("DEV_EMAIL_PW")
 is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
@@ -54,6 +54,8 @@ else:
     db_pw = os.environ.get("DB_PW")
     db_host = os.environ.get("DB_HOST")
     db_port = os.environ.get("DB_PORT")
+
+engine =  create_engine("postgresql://localhost/joshua", echo=True)
 
 # Queued jobs
 queued_jobs = defaultdict(dict)
