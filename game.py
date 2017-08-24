@@ -18,4 +18,5 @@ class Game(Base):
     curr_player = Column(Integer)
     biggest_player = Column(Integer)
     count_pass = Column(Integer)
+    curr_cards = Column(PickleType)
     prev_cards = Column(PickleType)

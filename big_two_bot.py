@@ -46,7 +46,7 @@ dev_email_pw = os.environ.get("DEV_EMAIL_PW")
 is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
 
-engine =  create_engine(os.environ.get("DATABASE_URL"))
+engine = create_engine(os.environ.get("DATABASE_URL"))
 Player.__table__.drop(engine)
 Game.__table__.drop(engine)
 base.Base.metadata.create_all(engine, checkfirst=True)
@@ -65,7 +65,7 @@ def main():
     dp = updater.dispatcher
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
+    dp.add_handler(CommandHandler("help", help_msg))
     dp.add_handler(CommandHandler("command", command))
     dp.add_handler(CommandHandler("donate", donate))
     dp.add_handler(CommandHandler("setlang", set_lang))
@@ -120,7 +120,7 @@ def start(bot, update):
 
 # Sends help message
 @run_async
-def help(bot, update):
+def help_msg(bot, update):
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
     keyboard = [[InlineKeyboardButton("Rate me", "https://t.me/storebot?start=biggytwobot")]]
@@ -199,7 +199,6 @@ def set_lang(bot, update):
 # Sets join timer
 @run_async
 def set_join_timer(bot, update, args):
-    print(args)
     set_game_timer(bot, update, "join", args[0])
 
 
@@ -280,7 +279,7 @@ def start_game(bot, update, job_queue, chat_data):
         return
 
     game = Game(group_tele_id=group_tele_id, game_round=1, curr_player=-1, biggest_player=-1, count_pass=0,
-                prev_cards=pydealer.Stack())
+                curr_cards=pydealer.Stack(), prev_cards=pydealer.Stack())
     session.add(game)
     session.commit()
 
@@ -399,7 +398,7 @@ def join(bot, update, job_queue, chat_data):
 
             setup_game(group_tele_id)
             game_message(bot, group_tele_id)
-            player_message(bot, group_tele_id, False, 0, False, job_queue)  # Not edit and not sort suit
+            player_message(bot, group_tele_id, False, 0, False, job_queue, chat_data)  # Not edit and not sort suit
 
 
 # Stops a game without enough players
@@ -440,105 +439,78 @@ def setup_game(group_tele_id):
         player.cards = player_cards
 
     game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
-    game.curr_player = curr_player
-    game.biggest_player = curr_player
+    game.curr_player = game.biggest_player = curr_player
     session.commit()
 
 
 # Sends message to game group
 def game_message(bot, group_tele_id):
     install_lang(group_tele_id)
-    message = ""
-    db = connect_db()
-    cur = db.cursor()
+    text = ""
 
-    cur.execute("select game_round, curr_player, player_in_control from game where group_tele_id = %s",
-                (group_tele_id,))
-    game_round, curr_player, player_in_control = cur.fetchone()
+    game_round, curr_player, biggest_player, curr_player_name = session.\
+        query(Game.game_round, Game.curr_player, Game.biggest_player, Player.player_name).\
+        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
-    cur.execute("select player_name from player where group_tele_id = %s and player_id = %s",
-                (group_tele_id, curr_player))
-    curr_player_name = cur.fetchone()[0]
-
-    if game_round > 1 and curr_player != (player_in_control + 1) % 4:
+    if game_round > 1 and curr_player != (biggest_player + 1) % 4:
         prev_player_id = (curr_player - 1) % 4
-        cur.execute("select player_name from player where group_tele_id = %s and player_id = %s",
-                    (group_tele_id, prev_player_id))
-        prev_player_name = cur.fetchone()[0]
+        prev_player_name = session.query(Player.player_name). \
+            filter(Player.group_tele_id == group_tele_id, Player.player_id == prev_player_id).first()
 
-        message += "--------------------------------------\n"
-        message += _("%s decided to PASS\n") % prev_player_name
+        text += "--------------------------------------\n"
+        text += _("%s decided to PASS\n") % prev_player_name
 
-    db.close()
+    text += "--------------------------------------\n"
+    text += _("%s's Turn\n") % curr_player_name
+    text += "--------------------------------------\n"
 
-    message += "--------------------------------------\n"
-    message += _("%s's Turn\n") % curr_player_name
-    message += "--------------------------------------\n"
+    text += get_game_message(group_tele_id, game_round, curr_player, biggest_player)
 
-    message += get_game_message(group_tele_id, game_round, curr_player, player_in_control)
-
-    bot.sendMessage(group_tele_id, message, disable_notification=True)
+    bot.sendMessage(group_tele_id, text, disable_notification=True)
 
 
 # Sends message to player
-def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_queue):
-    message = ""
-    db = connect_db()
-    cur = db.cursor()
+def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_queue, chat_data):
+    text = ""
 
-    cur.execute("select game_round, curr_player, player_in_control from game where group_tele_id = %s",
-                (group_tele_id,))
-    game_round, curr_player, player_in_control = cur.fetchone()
-    cur.execute("select player_tele_id from player where group_tele_id = %s and player_id = %s",
-                (group_tele_id, curr_player))
-    player_tele_id = cur.fetchone()[0]
-    db.close()
+    game, player = session.query(Game, Player).\
+        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
+    game_round, curr_player, biggest_player, cards = \
+        game.game_round, game.curr_player, game.biggest_player, game.curr_cards
+    player_tele_id = player.player_tele_id
 
     install_lang(player_tele_id)
-    message += get_game_message(group_tele_id, game_round, curr_player, player_in_control)
+    text += get_game_message(group_tele_id, game_round, curr_player, biggest_player)
 
     # Checks if to display selected cards
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("select suit, num from curr_card where group_tele_id = %s", (group_tele_id,))
-    rows = cur.fetchall()
-    if rows:
-        cards = []
-        message += _("Selected cards:\n")
+    if cards:
+        cards.sort(ranks=pydealer.BIG2_RANKS)
+        text += _("Selected cards:\n")
 
-        for row in rows:
-            cards.append(Card(row[0], row[1]))
-
-        cards.sort()
         for card in cards:
-            message += str(card.show_suit)
-            message += " "
-            message += str(card.show_num)
-            message += "\n"
+            text += suit_unicode(card.suit)
+            text += " "
+            text += str(card.value)
+            text += "\n"
 
-        message += "--------------------------------------\n"
+        text += "--------------------------------------\n"
 
-    message += _("Pick the cards that you will like to use from below, one at a time. Press done when you are finished")
+    text += _("Pick the cards that you will like to use from below, one at a time. Press done when you are finished")
 
-    cards = []
+    cards = player.cards
     card_list = []
 
-    cur.execute("select suit, num from player_deck where group_tele_id = %s and player_id = %s",
-                (group_tele_id, curr_player))
-    for row in cur.fetchall():
-        cards.append(Card(row[0], row[1]))
-
     if is_sort_suit:
-        cards.sort(key=lambda x: x.suit)
+        cards.sort(ranks=pydealer.BIG2_RANKS, key=lambda x: x.suit)
     else:
-        cards.sort()
+        cards.sort(ranks=pydealer.BIG2_RANKS)
 
     for card in cards:
-        show_card = str(card.show_suit)
+        show_card = suit_unicode(card.suit)
         show_card += " "
-        show_card += str(card.show_num)
+        show_card += str(card.value)
 
-        call_back_data = "%d,%d" % (card.suit, card.num)
+        call_back_data = card.abbrev
         card_list.append(InlineKeyboardButton(text=show_card,
                                               callback_data=call_back_data))
 
@@ -562,73 +534,66 @@ def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_qu
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if is_edit:
-        bot_message = bot.editMessageText(text=message,
+        bot_message = bot.editMessageText(text=text,
                                           chat_id=player_tele_id,
                                           message_id=message_id,
                                           reply_markup=reply_markup)
     else:
         bot_message = bot.sendMessage(chat_id=player_tele_id,
-                                      text=message,
+                                      text=text,
                                       reply_markup=reply_markup)
 
     job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, bot_message.message_id)
-    cur.execute("select pass_timer from game_timer where group_tele_id = %s", (group_tele_id,))
-    row = cur.fetchone()
-    db.close()
-    if row is None:
-        job = job_queue.run_once(pass_round, 45, context=job_context)
-    else:
-        pass_timer = row[0]
+    pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.group_tele_id == group_tele_id).first()
+
+    if pass_timer:
         job = job_queue.run_once(pass_round, pass_timer, context=job_context)
-    queued_jobs[group_tele_id]["pass"] = job
+    else:
+        job = job_queue.run_once(pass_round, 45, context=job_context)
+
+    chat_data["queued_job"] = job
 
 
 # Returns a string a message that contains info of the game
-def get_game_message(group_tele_id, game_round, curr_player, player_in_control):
-    message = ""
-    db = connect_db()
-    cur = db.cursor()
+def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
+    text = ""
 
-    cur.execute("select player_name from player where group_tele_id = %s and player_id = %s",
-                (group_tele_id, curr_player))
-    player_name = cur.fetchone()[0]
-
-    cur.execute("select player_name from player where group_tele_id = %s and player_id = %s",
-                (group_tele_id, player_in_control))
-    control_player_name = cur.fetchone()[0]
+    player_name = session.query(Player.player_name).\
+        filter(Player.group_tele_id == group_tele_id, Player.player_id == curr_player).first()
+    biggest_player_name = session.query(Player.player_name).\
+        filter(Player.group_tele_id == group_tele_id, Player.player_id == biggest_player).first()
 
     # Stores the number of cards that each player has
-    player_dict = {}
-    cur.execute("select player_id, player_name, num_cards from player where group_tele_id = %s", (group_tele_id,))
-    for row in cur.fetchall():
-        player = "%d. %s" % (row[0], row[1])
-        player_dict[player] = row[2]
+    playes_info = {}
+    players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
+    for player in players:
+        player_id, player_name, cards = player.player_id, player.player_name, player.cards
+        player = "%d. %s" % (player_id, player_name)
+        playes_info[player] = cards.size
 
     # Displays the number of cards that each player has
-    for player in sorted(player_dict.keys()):
-        message += _("%s has %d cards\n") % (player, player_dict[player])
-    message += "--------------------------------------\n"
+    for player in sorted(playes_info.keys()):
+        text += _("%s has %d cards\n") % (player, playes_info[player])
+    text += "--------------------------------------\n"
 
     # Checks if player is in control
-    if game_round > 1 and curr_player == player_in_control:
-        message += _("%s is in control now\n") % player_name
-        message += "--------------------------------------\n"
+    if game_round > 1 and curr_player == biggest_player:
+        text += _("%s is in control now\n") % player_name
+        text += "--------------------------------------\n"
     elif game_round > 1:
-        message += _("%s used:\n") % control_player_name
+        text += _("%s used:\n") % biggest_player_name
+        game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+        cards = game.prev_cards
 
-        cur.execute("select suit, num from prev_card where group_tele_id = %s", (group_tele_id,))
-        for row in cur.fetchall():
-            card = Card(row[0], row[1])
-            message += str(card.show_suit)
-            message += " "
-            message += str(card.show_num)
-            message += "\n"
+        for card in cards:
+            text += suit_unicode(card.suit)
+            text += " "
+            text += str(card.value)
+            text += "\n"
 
-        message += "--------------------------------------\n"
+        text += "--------------------------------------\n"
 
-    db.close()
-
-    return message
+    return text
 
 
 # Forces to stop a game (admin only)
