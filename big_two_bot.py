@@ -401,7 +401,7 @@ def join(bot, update, job_queue):
 
             setup_game(group_tele_id)
             game_message(bot, group_tele_id)
-            player_message(bot, group_tele_id, False, 0, False, job_queue)  # Not edit and not sort suit
+            player_message(bot, group_tele_id, job_queue)
 
 
 # Stops a game without enough players
@@ -473,7 +473,7 @@ def game_message(bot, group_tele_id):
 
 
 # Sends message to player
-def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_queue):
+def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None):
     text = ""
 
     game, player = session.query(Game, Player).\
@@ -665,12 +665,12 @@ def in_line_button(bot, update, job_queue):
         return
 
     player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
-    group_tele_id = player.group_tele_id
 
     # Checks if player in game
     if not player:
         return
 
+    group_tele_id = player.group_tele_id
     if not session.query(Game, Player).\
         filter(Game.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id,
                Game.curr_player == Player.player_id).first():
@@ -684,7 +684,7 @@ def in_line_button(bot, update, job_queue):
         use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue)
     elif data == "unselect":
         return_cards_to_deck(group_tele_id)
-        player_message(bot, group_tele_id, True, message_id, False, job_queue)
+        player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
     elif data == "pass":
         game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
         game.count_pass = 0
@@ -692,9 +692,9 @@ def in_line_button(bot, update, job_queue):
         job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
         job_queue.run_once(pass_round, 0, context=job_context)
     elif data == "sortSuit":
-        player_message(bot, group_tele_id, True, message_id, True, job_queue)  # Edit and sort suit
+        player_message(bot, group_tele_id, job_queue, is_sort_suit=True, is_edit=True, message_id=message_id)
     elif data == "sortNum":
-        player_message(bot, group_tele_id, True, message_id, False, job_queue)  # Edit and not sort suit
+        player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
 
 
 # Changes the default language of a player/group
@@ -724,7 +724,7 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     game.curr_cards.add(card)
     session.commit()
 
-    player_message(bot, group_tele_id, True, message_id, False, job_queue)  # Edit and not sort suit
+    player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)  # Edit and not sort suit
 
 
 # Uses the selected cards
@@ -779,9 +779,9 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
         advance_game(bot, group_tele_id, curr_player, player_name, curr_cards)
 
     if valid and bigger:
-        player_message(bot, group_tele_id, False, 0, False, job_queue)  # Not edit and not sort suit
+        player_message(bot, group_tele_id, job_queue)
     else:
-        player_message(bot, group_tele_id, True, message_id, False, job_queue)  # Edit and not sort suit
+        player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
         bot.sendMessage(player_tele_id, message)
 
 
@@ -864,7 +864,7 @@ def pass_round(bot, job):
     session.commit()
 
     game_message(bot, group_tele_id)
-    player_message(bot, group_tele_id, False, 0, False, job.job_queue)
+    player_message(bot, group_tele_id, job.job_queue)
 
 
 # Stops an idle game
