@@ -11,8 +11,6 @@ import random
 import re
 import smtplib
 
-from collections import defaultdict
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -473,7 +471,7 @@ def game_message(bot, group_tele_id):
 
 
 # Sends message to player
-def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None):
+def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None, message=None):
     text = ""
 
     game, player = session.query(Game, Player).\
@@ -513,26 +511,18 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
         show_card += " "
         show_card += str(card.value)
 
-        call_back_data = card.abbrev
-        card_list.append(InlineKeyboardButton(text=show_card,
-                                              callback_data=call_back_data))
+        card_list.append(InlineKeyboardButton(text=show_card,callback_data=card.abbrev))
 
     keyboard = [card_list[i:i + 4] for i in range(0, len(card_list), 4)]
-    keyboard.append([InlineKeyboardButton(text=_("Unselect"),
-                                          callback_data="unselect"),
-                     InlineKeyboardButton(text=_("Done"),
-                                          callback_data="useCards")])
+    keyboard.append([InlineKeyboardButton(text=_("Unselect"), callback_data="unselect"),
+                     InlineKeyboardButton(text=_("Done"), callback_data="useCards")])
 
     if is_sort_suit:
-        keyboard.append([InlineKeyboardButton(text=_("Sort by number"),
-                                              callback_data="sortNum"),
-                         InlineKeyboardButton(text=_("PASS"),
-                                              callback_data="pass")])
+        keyboard.append([InlineKeyboardButton(text=_("Sort by number"), callback_data="sortNum"),
+                         InlineKeyboardButton(text=_("PASS"), callback_data="pass")])
     else:
-        keyboard.append([InlineKeyboardButton(text=_("Sort by suit"),
-                                              callback_data="sortSuit"),
-                         InlineKeyboardButton(text=_("PASS"),
-                                              callback_data="pass")])
+        keyboard.append([InlineKeyboardButton(text=_("Sort by suit"), callback_data="sortSuit"),
+                         InlineKeyboardButton(text=_("PASS"), callback_data="pass")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -656,7 +646,7 @@ def show_deck(bot, update):
 # Handles inline buttons
 def in_line_button(bot, update, job_queue):
     query = update.callback_query
-    player_tele_id = query.message.from_user.id
+    player_tele_id = query.message.chat.id
     message_id = query.message.message_id
     data = query.data
 
@@ -678,7 +668,7 @@ def in_line_button(bot, update, job_queue):
 
     queued_jobs[group_tele_id].schedule_removal()
 
-    if re.match("\d,\d+", data):
+    if re.match("([2-9]|J|Q|K|A)[DCHS]", data):
         add_use_card(bot, group_tele_id, message_id, data, job_queue)
     elif data == "useCards":
         use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue)
@@ -720,11 +710,16 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     game, player = session.query(Game, Player).\
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
-    card = player.cards.get(card_abbrev, ranks=pydealer.BIG2_RANKS)
-    game.curr_cards.add(card)
+    curr_cards, player_cards = pydealer.Stack(), pydealer.Stack()
+    curr_cards.add(game.curr_cards)
+    player_cards.add(player.cards)
+
+    card = player_cards.get(card_abbrev)[0]
+    curr_cards.add(card)
+    game.curr_cards, player.cards = curr_cards, player_cards
     session.commit()
 
-    player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)  # Edit and not sort suit
+    player_message(bot, group_tele_id, job_queue)
 
 
 # Uses the selected cards
