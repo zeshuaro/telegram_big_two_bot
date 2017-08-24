@@ -54,7 +54,7 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 # Queued jobs
-queued_jobs = defaultdict(dict)
+queued_jobs = {}
 
 
 def main():
@@ -71,8 +71,8 @@ def main():
     dp.add_handler(CommandHandler("setlang", set_lang))
     dp.add_handler(CommandHandler("setjointimer", set_join_timer, pass_args=True))
     dp.add_handler(CommandHandler("setpasstimer", set_pass_timer, pass_args=True))
-    dp.add_handler(CommandHandler("startgame", start_game, pass_job_queue=True, pass_chat_data=True))
-    dp.add_handler(CommandHandler("join", join, pass_job_queue=True, pass_chat_data=True))
+    dp.add_handler(CommandHandler("startgame", start_game, pass_job_queue=True))
+    dp.add_handler(CommandHandler("join", join, pass_job_queue=True))
     dp.add_handler(CommandHandler("forcestop", force_stop))
     dp.add_handler(CommandHandler("showdeck", show_deck))
     dp.add_handler(feedback_cov_handler())
@@ -100,6 +100,9 @@ def main():
 
 # Deletes game data with the given group telegram ID
 def delete_game_data(group_tele_id):
+    if group_tele_id in queued_jobs:
+        queued_jobs[group_tele_id].schedule_removal()
+
     session.query(Game).filter(Game.group_tele_id == group_tele_id).delete()
     session.commit()
 
@@ -262,7 +265,7 @@ def set_game_timer(bot, update, timer_type, timer):
 
 
 # Starts a new game
-def start_game(bot, update, job_queue, chat_data):
+def start_game(bot, update, job_queue):
     group_tele_id = update.message.chat.id
     player_name = update.message.from_user.first_name
     install_lang(update.message.from_user.id)
@@ -290,7 +293,7 @@ def start_game(bot, update, job_queue, chat_data):
                     text=text,
                     disable_notification=True)
 
-    join(bot, update, job_queue, chat_data)
+    join(bot, update, job_queue)
 
 
 # Checks if bot is authorised to send user messages
@@ -325,7 +328,7 @@ def can_msg_player(bot, update):
 
 
 # Joins a new game
-def join(bot, update, job_queue, chat_data):
+def join(bot, update, job_queue):
     player_name = update.message.from_user.first_name
     player_tele_id = update.message.from_user.id
     group_name = update.message.chat.title
@@ -365,15 +368,15 @@ def join(bot, update, job_queue, chat_data):
         install_lang(group_tele_id)
         text = (_("[%s] has joined.\nThere are now %d/4 Players\n") % (player_name, num_players))
 
-        if "queued_job" in chat_data:
-            chat_data["queued_job"].schedule_removal()
+        if group_tele_id in queued_jobs:
+            queued_jobs[group_tele_id].schedule_removal()
 
         group_settings = session.query(GroupSetting).filter(GroupSetting.group_tele_id == group_tele_id).first()
         join_timer = group_settings.join_timer if group_settings and group_settings.join_timer else 60
 
         if num_players != 4:
             job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
-            queued_jobs[group_tele_id]["join"] = job
+            queued_jobs[group_tele_id] = job
             text += _("%ss left to join") % join_timer
 
         bot.sendMessage(chat_id=group_tele_id,
@@ -398,7 +401,7 @@ def join(bot, update, job_queue, chat_data):
 
             setup_game(group_tele_id)
             game_message(bot, group_tele_id)
-            player_message(bot, group_tele_id, False, 0, False, job_queue, chat_data)  # Not edit and not sort suit
+            player_message(bot, group_tele_id, False, 0, False, job_queue)  # Not edit and not sort suit
 
 
 # Stops a game without enough players
@@ -470,7 +473,7 @@ def game_message(bot, group_tele_id):
 
 
 # Sends message to player
-def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_queue, chat_data):
+def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_queue):
     text = ""
 
     game, player = session.query(Game, Player).\
@@ -551,7 +554,7 @@ def player_message(bot, group_tele_id, is_edit, message_id, is_sort_suit, job_qu
     else:
         job = job_queue.run_once(pass_round, 45, context=job_context)
 
-    chat_data["queued_job"] = job
+    queued_jobs[group_tele_id] = job
 
 
 # Returns a string a message that contains info of the game
@@ -599,38 +602,22 @@ def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
 # Forces to stop a game (admin only)
 @run_async
 def force_stop(bot, update):
+    group_tele_id = update.message.chat.id
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
 
-    if update.message.chat.type != "group":
-        message = _("You can only use this command in a group")
-        bot.sendMessage(player_tele_id, message)
+    if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
+        bot.sendMessage(player_tele_id, _("You can only use this command in a group"))
         return
 
-    group_tele_id = update.message.chat.id
-    is_admin = False
-    admins = bot.getChatAdministrators(group_tele_id)
-
-    for admin in admins:
-        if admin.user.id == player_tele_id:
-            is_admin = True
-            break
-
-    if not is_admin:
-        message = _("You are not a group admin")
-        bot.sendMessage(player_tele_id, message)
+    member = bot.get_chat_member(group_tele_id, player_tele_id)
+    if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.CREATOR):
+        bot.sendMessage(player_tele_id, _("You are not a group admin"))
         return
 
-    db = connect_db()
-    cur = db.cursor()
-
-    cur.execute("select * from game where group_tele_id = %s", (group_tele_id,))
-    if not cur.fetchone():
-        message = _("No game is running at the moment")
-        bot.sendMessage(player_tele_id, message)
-        db.close()
+    if not session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+        bot.sendMessage(player_tele_id, _("No game is running at the moment"))
         return
-    db.close()
 
     install_lang(group_tele_id)
     message = (_("Game has been stopped by [%s]") %
@@ -645,48 +632,23 @@ def force_stop(bot, update):
 def show_deck(bot, update):
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
-    db = connect_db()
-    cur = db.cursor()
+    player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
 
     # Checks if player in game
-    cur.execute("select group_tele_id from player_group where player_tele_id = %s", (player_tele_id,))
-    group_tele_id = cur.fetchone()
-    if group_tele_id is None:
-        message = _("You are not in a game")
-        bot.sendMessage(player_tele_id, message)
-        db.close()
-        return
-    group_tele_id = group_tele_id[0]
-
-    # Checks if there is a game
-    cur.execute("select * from game where group_tele_id = %s", (group_tele_id,))
-    if not cur.fetchone():
-        message = _("No game is running at the moment")
-        bot.sendMessage(player_tele_id, message)
-        db.close()
+    if not player:
+        bot.sendMessage(player_tele_id, _("You are not in a game"))
         return
 
-    cur.execute("select player_id from player where group_tele_id = %s and player_tele_id = %s",
-                (group_tele_id, player_tele_id,))
-    player_id = cur.fetchone()[0]
-
-    cur.execute("select suit, num from player_deck where group_tele_id = %s and player_id = %s",
-                (group_tele_id, player_id,))
-    rows = cur.fetchall()
-    if not rows:
-        message = _("Game has not started yet")
-        bot.sendMessage(player_tele_id, message)
-        db.close()
+    if player.cards.size == 0:
+        bot.sendMessage(player_tele_id, _("Game has not started yet"))
         return
 
     message = _("Your deck of cards:\n")
-    for row in rows:
-        card = Card(row[0], row[1])
-        message += str(card.show_suit)
+    for card in player.cards:
+        message += suit_unicode(card.suit)
         message += " "
-        message += str(card.show_num)
+        message += str(card.value)
         message += "\n"
-    db.close()
 
     bot.sendMessage(player_tele_id, message)
 
@@ -694,7 +656,7 @@ def show_deck(bot, update):
 # Handles inline buttons
 def in_line_button(bot, update, job_queue):
     query = update.callback_query
-    player_tele_id = query.message.chat_id
+    player_tele_id = query.message.from_user.id
     message_id = query.message.message_id
     data = query.data
 
@@ -702,48 +664,31 @@ def in_line_button(bot, update, job_queue):
         change_lang(bot, player_tele_id, message_id, data)
         return
 
-    db = connect_db()
-    cur = db.cursor()
+    player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
+    group_tele_id = player.group_tele_id
 
-    cur.execute("select group_tele_id from player_group where player_tele_id = %s", (player_tele_id,))
-    group_tele_id = cur.fetchone()
     # Checks if player in game
-    if group_tele_id is None:
-        db.close()
+    if not player:
         return
-    group_tele_id = group_tele_id[0]
 
-    # Checks if game is running
-    cur.execute("select curr_player from game where group_tele_id = %s", (group_tele_id,))
-    curr_player = cur.fetchone()
-    if curr_player is None:
-        db.close()
+    if not session.query(Game, Player).\
+        filter(Game.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id,
+               Game.curr_player == Player.player_id).first():
         return
-    curr_player = curr_player[0]
 
-    # Checks if outdated button
-    cur.execute("select player_tele_id from player where group_tele_id = %s and player_id = %s",
-                (group_tele_id, curr_player))
-    curr_player_tele_id = cur.fetchone()[0]
-    if player_tele_id != curr_player_tele_id:
-        db.close()
-        return
-    db.close()
-
-    queued_jobs[group_tele_id]["pass"].schedule_removal()
+    queued_jobs[group_tele_id].schedule_removal()
 
     if re.match("\d,\d+", data):
-        add_use_card(bot, group_tele_id, message_id, curr_player, data, job_queue)
+        add_use_card(bot, group_tele_id, message_id, data, job_queue)
     elif data == "useCards":
         use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue)
     elif data == "unselect":
-        unselect_use_cards(bot, group_tele_id, message_id, curr_player, job_queue)
+        return_cards_to_deck(group_tele_id)
+        player_message(bot, group_tele_id, True, message_id, False, job_queue)
     elif data == "pass":
-        db = connect_db()
-        cur = db.cursor()
-        cur.execute("update game set count_pass = 0 where group_tele_id = %s", (group_tele_id,))
-        db.commit()
-        db.close()
+        game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+        game.count_pass = 0
+        session.commit()
         job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
         job_queue.run_once(pass_round, 0, context=job_context)
     elif data == "sortSuit":
@@ -771,16 +716,13 @@ def change_lang(bot, tele_id, message_id, data):
 
 
 # Adds a selected card
-def add_use_card(bot, group_tele_id, message_id, curr_player, card, job_queue):
-    suit, num = map(int, card.split(","))
+def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
+    game, player = session.query(Game, Player).\
+        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("delete from player_deck where group_tele_id = %s and player_id = %s and suit = %s and num = %s",
-                (group_tele_id, curr_player, suit, num))
-    cur.execute("insert into curr_card (group_tele_id, suit, num) values (%s, %s, %s)", (group_tele_id, suit, num))
-    db.commit()
-    db.close()
+    card = player.cards.get(card_abbrev, ranks=pydealer.BIG2_RANKS)
+    game.curr_cards.add(card)
+    session.commit()
 
     player_message(bot, group_tele_id, True, message_id, False, job_queue)  # Edit and not sort suit
 
@@ -790,77 +732,51 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     install_lang(player_tele_id)
     valid = True
     bigger = True
-    prev_cards = []
-    use_cards = []
 
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("select curr_player, player_in_control, game_round from game where group_tele_id = %s",
-                (group_tele_id,))
-    curr_player, player_in_control, game_round = cur.fetchone()
+    game, player = session.query(Game, Player).\
+        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
+    game_round, curr_player, biggest_player, curr_cards, prev_cards = \
+        game.game_round, game.curr_player, game.biggest_player, game.curr_cards, game.prev_cards
+    player_name, num_cards = player.player_name, player.cards.size
 
-    cur.execute("select player_name, num_cards from player where group_tele_id = %s and player_id = %s",
-                (group_tele_id, curr_player))
-    player_name, num_cards = cur.fetchone()
+    prev_cards.sort(ranks=pydealer.BIG2_RANKS)
+    curr_cards.sort(ranks=pydealer.BIG2_RANKS)
 
-    cur.execute("select suit, num from prev_card where group_tele_id = %s", (group_tele_id,))
-    for row in cur.fetchall():
-        prev_cards.append(Card(row[0], row[1]))
-
-    cur.execute("select suit, num from curr_card where group_tele_id = %s", (group_tele_id,))
-    for row in cur.fetchall():
-        use_cards.append(Card(row[0], row[1]))
-
-    db.close()
-
-    prev_cards.sort()
-    use_cards.sort()
-
-    if len(use_cards) == 0:
+    if curr_cards.size == 0:
         return
 
-    if get_cards_type(use_cards) == -1 or (game_round == 1 and Card(0, 3) not in use_cards) or \
-            (curr_player != player_in_control and len(prev_cards) != 0 and len(prev_cards) != len(use_cards)):
+    if get_cards_type(curr_cards) == -1 or (game_round == 1 and not curr_cards.find("3D")) or \
+            (curr_player != biggest_player and prev_cards.size != 0 and prev_cards.size != curr_cards.size):
         valid = False
 
-    if valid and curr_player != player_in_control and not are_cards_bigger(prev_cards, use_cards):
+    if valid and curr_player != biggest_player and not are_cards_bigger(prev_cards, curr_cards):
         bigger = False
 
     if not valid:
         message = _("Invalid cards. Please try again\n")
-        return_cards_to_deck(group_tele_id, curr_player)
+        return_cards_to_deck(group_tele_id)
     elif not bigger:
         message = _("You cards are not bigger than the previous cards. ")
         message += _("Please try again\n")
-        return_cards_to_deck(group_tele_id, curr_player)
+        return_cards_to_deck(group_tele_id)
     else:
         message = _("These cards have been used:\n")
-        for card in use_cards:
+        for card in curr_cards:
             message += str(card.show_suit)
             message += " "
             message += str(card.show_num)
             message += "\n"
         bot.editMessageText(message, player_tele_id, message_id)
 
-        new_num_cards = num_cards - len(use_cards)
-
-        db = connect_db()
-        cur = db.cursor()
-        cur.execute("update player set num_cards = %s where group_tele_id = %s and player_id = %s",
-                    (new_num_cards, group_tele_id, curr_player))
-        cur.execute("delete from curr_card where group_tele_id = %s", (group_tele_id,))
-        cur.execute("delete from prev_card where group_tele_id = %s", (group_tele_id,))
-        for card in use_cards:
-            cur.execute("insert into prev_card (group_tele_id, suit, num) values (%s, %s, %s)",
-                        (group_tele_id, card.suit, card.num))
-        db.commit()
-        db.close()
-
+        new_num_cards = num_cards - curr_cards.size
         if new_num_cards == 0:
-            finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, use_cards)
+            finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards)
             return
-        else:
-            advance_game(bot, group_tele_id, game_round, curr_player, player_name, use_cards)
+
+        game.curr_cards.empty()
+        game.prev_cards = curr_cards
+        session.commit()
+        advance_game(bot, group_tele_id, curr_player, player_name, curr_cards)
 
     if valid and bigger:
         player_message(bot, group_tele_id, False, 0, False, job_queue)  # Not edit and not sort suit
@@ -870,52 +786,31 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
 
 
 # Retruns curr_cards to the player's deck
-def return_cards_to_deck(group_tele_id, curr_player):
-    db = connect_db()
-    cur = db.cursor()
+def return_cards_to_deck(group_tele_id):
+    game, player = session.query(Game, Player).\
+        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
-    cur.execute("select suit, num from curr_card where group_tele_id = %s", (group_tele_id,))
-    for row in cur.fetchall():
-        cur.execute("insert into player_deck (group_tele_id, player_id, suit, num)"
-                    "values (%s, %s, %s, %s)", (group_tele_id, curr_player, row[0], row[1]))
-    cur.execute("delete from curr_card where group_tele_id = %s", (group_tele_id,))
-
-    db.commit()
-    db.close()
-
-
-# Unselects the selected cards
-def unselect_use_cards(bot, group_tele_id, message_id, curr_player, job_queue):
-    return_cards_to_deck(group_tele_id, curr_player)
-    player_message(bot, group_tele_id, True, message_id, False, job_queue)
+    curr_cards = game.curr_cards
+    player.cards.add(curr_cards)
+    game.curr_cards.empty()
+    session.commit()
 
 
 # Advances the game
-def advance_game(bot, group_tele_id, game_round, curr_player, player_name, use_cards):
-    game_round += 1
-    player_in_control = curr_player
-    curr_player = (curr_player + 1) % 4
-
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("update game set game_round = %s, curr_player = %s, player_in_control = %s where group_tele_id = %s",
-                (game_round, curr_player, player_in_control, group_tele_id))
-    db.commit()
-    db.close()
+def advance_game(bot, group_tele_id, curr_player, player_name, curr_cards):
+    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    game.game_round += 1
+    game.curr_player = (curr_player + 1) % 4
+    game.biggest_player = curr_player
+    session.commit()
 
     game_message(bot, group_tele_id)
 
-    if len(use_cards) == 1 and use_cards[0].suit == 3 and use_cards[0].num == 15:
-        curr_player = (curr_player - 1) % 4
+    if curr_cards.size == 1 and curr_cards.find("2S"):
+        game.curr_player = (curr_player - 1) % 4
+        session.commit()
 
-        db = connect_db()
-        cur = db.cursor()
-        cur.execute("update game set curr_player = %s where group_tele_id = %s", (curr_player, group_tele_id))
-        db.commit()
-        db.close()
-
-        message = (_("I have passed all players since %s has used %s%s\n") %
-                   (player_name, use_cards[0].show_suit, use_cards[0].show_num))
+        message = (_("I have passed all players since %s has used ♠2\n") % player_name)
         message += "--------------------------------------\n"
         message += _("%s's Turn\n") % player_name
 
@@ -923,26 +818,20 @@ def advance_game(bot, group_tele_id, game_round, curr_player, player_name, use_c
 
 
 # Game over
-def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, use_cards):
-    db = connect_db()
-    cur = db.cursor()
-
+def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards):
     bot.sendMessage(player_tele_id, _("You won!"))
 
-    cur.execute("select player_tele_id from player where group_tele_id = %s and player_id != %s",
-                (group_tele_id, curr_player))
-    for row in cur.fetchall():
-        install_lang(row[0])
-        bot.sendMessage(row[0], _("You lost!"))
-
-    db.close()
+    players = session.query(Player).filter(Player.group_tele_id == group_tele_id, Player.player_id != curr_player)
+    for player in players:
+        install_lang(player.player_tele_id)
+        bot.sendMessage(player.player_tele_id, _("You lost!"))
 
     install_lang(group_tele_id)
     message = _("These cards have been used:\n")
-    for card in use_cards:
-        message += str(card.show_suit)
+    for card in curr_cards:
+        message += suit_unicode(card.suit)
         message += " "
-        message += str(card.show_num)
+        message += str(card.value)
         message += "\n"
     message += "--------------------------------------\n"
     message += _("%s won!") % player_name
@@ -957,39 +846,22 @@ def pass_round(bot, job):
     group_tele_id, player_tele_id, message_id = map(int, job.context.split(","))
     install_lang(player_tele_id)
 
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("select game_round, curr_player, count_pass from game where group_tele_id = %s", (group_tele_id,))
-    try:
-        game_round, curr_player, count_pass = cur.fetchone()
-    except TypeError:
-        db.close()
-        return
-    db.close()
-
-    game_round += 1
-    curr_player = (curr_player + 1) % 4
-    count_pass += 1
+    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    game.game_round += 1
+    game.curr_player = (game.curr_player + 1) % 4
+    game.count_pass += 1
 
     try:
-        bot.editMessageText(text=_("You Passed"),
-                            chat_id=player_tele_id,
-                            message_id=message_id)
+        bot.editMessageText(text=_("You Passed"), chat_id=player_tele_id, message_id=message_id)
     except:
         return
 
-    if count_pass > 4:
+    if game.count_pass > 4:
         stop_idle_game(bot, group_tele_id)
         return
 
-    return_cards_to_deck(group_tele_id, curr_player)
-
-    db = connect_db()
-    cur = db.cursor()
-    cur.execute("update game set game_round = %s, curr_player = %s, count_pass = %s where group_tele_id = %s",
-                (game_round, curr_player, count_pass, group_tele_id))
-    db.commit()
-    db.close()
+    return_cards_to_deck(group_tele_id)
+    session.commit()
 
     game_message(bot, group_tele_id)
     player_message(bot, group_tele_id, False, 0, False, job.job_queue)
@@ -1100,22 +972,12 @@ def send(bot, update, args):
 # Bot status for dev
 def status(bot, update):
     if update.message.from_user.id == dev_tele_id:
-        db = connect_db()
-        cur = db.cursor()
+        num_users = session.query(Language).filter(Language.tele_id > 0).count()
+        num_groups = session.query(Language).filter(Language.tele_id < 0).count()
+        num_games = session.query(Game).count()
 
-        cur.execute("select count(*) from user_language where tele_id > 0")
-        num_users = cur.fetchone()[0]
-
-        cur.execute("select count(*) from user_language where tele_id < 0")
-        num_groups = cur.fetchone()[0]
-
-        cur.execute("select count(*) from game")
-        num_games = cur.fetchone()[0]
-
-        db.close()
-
-        message = "Number of users: %d\nNumber of groups: %d\nNumber of games: %d" % (num_users, num_groups, num_games)
-        bot.send_message(dev_tele_id, message)
+        text = "Number of users: %d\nNumber of groups: %d\nNumber of games: %d" % (num_users, num_groups, num_games)
+        bot.send_message(dev_tele_id, text)
 
 
 def error(bot, update, error):
