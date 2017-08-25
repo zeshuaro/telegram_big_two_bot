@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, PickleType
+from sqlalchemy.orm import relationship
 
 from base import Base
 
@@ -13,3 +14,4 @@ class Game(Base):
     count_pass = Column(Integer)
     curr_cards = Column(PickleType)
     prev_cards = Column(PickleType)
+    players = relationship("Player", backref="Game", cascade="all, delete")

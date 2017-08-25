@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, Text, PickleType, ForeignKey
-from sqlalchemy.orm import relationship
 
 from base import Base
 
@@ -11,5 +10,3 @@ class Player(Base):
     player_name = Column(Text)
     player_id = Column(Integer)
     cards = Column(PickleType)
-
-    # _game = relationship("Game", back_populates="players")

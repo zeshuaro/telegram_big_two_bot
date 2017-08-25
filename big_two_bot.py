@@ -37,7 +37,6 @@ app_url = os.environ.get("APP_URL")
 port = int(os.environ.get('PORT', '5000'))
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA", os.environ.get("TELEGRAM_TOKEN"))
-is_testing = os.environ.get("IS_TESTING")
 dev_tele_id = int(os.environ.get("DEV_TELE_ID"))
 dev_email = os.environ.get("DEV_EMAIL", "sample@email.com")
 dev_email_pw = os.environ.get("DEV_EMAIL_PW")
@@ -101,7 +100,8 @@ def delete_game_data(group_tele_id):
     if group_tele_id in queued_jobs:
         queued_jobs[group_tele_id].schedule_removal()
 
-    session.query(Game).filter(Game.group_tele_id == group_tele_id).delete()
+    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    session.delete(game)
     session.commit()
 
 
@@ -307,19 +307,15 @@ def can_msg_player(bot, update):
         group_tele_id = update.message.chat.id
         install_lang(group_tele_id)
 
-        message = (_("[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able to join and "
-                     "play Big Two") % player_name)
+        text = (_("[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able to join and "
+                  "play Big Two") % player_name)
 
-        keyboard = [[InlineKeyboardButton(text=_("Say start to me"),
-                                          url="https://telegram.me/biggytwobot")]]
+        keyboard = [[InlineKeyboardButton(text=_("Say start to me"), url="https://telegram.me/biggytwobot")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        bot.send_message(chat_id=group_tele_id,
-                         text=message,
-                         reply_markup=reply_markup)
+        bot.send_message(chat_id=group_tele_id, text=text, reply_markup=reply_markup)
     else:
-        bot.delete_message(chat_id=player_tele_id,
-                           message_id=bot_message.message_id)
+        bot.delete_message(chat_id=player_tele_id, message_id=bot_message.message_id)
 
     return is_success
 
@@ -347,10 +343,9 @@ def join(bot, update, job_queue):
         return
 
     # Checks if player is in game
-    if not is_testing:
-        if session.query(Player).filter(Player.player_tele_id == player_tele_id).first():
-            bot.send_message(player_tele_id, _("You have already joined a game"))
-            return
+    if session.query(Player).filter(Player.player_tele_id == player_tele_id).first():
+        bot.send_message(player_tele_id, _("You have already joined a game"))
+        return
 
     num_players = session.query(Player).filter(Player.group_tele_id == group_tele_id).count()
 
@@ -413,8 +408,7 @@ def stop_empty_game(bot, job):
 # Sets up a game
 def setup_game(group_tele_id):
     player_tele_ids = session.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
-    if not is_testing:
-        random.shuffle(player_tele_ids)
+    random.shuffle(player_tele_ids)
 
     # Creates a deck of cards in random order
     deck = pydealer.Deck(ranks=pydealer.BIG2_RANKS)
@@ -431,11 +425,8 @@ def setup_game(group_tele_id):
         if player_cards.find("3D"):
             curr_player = i
 
-        player = session.query(Player). \
-            filter(Player.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id).first()
-
-        if not is_testing:
-            player.player_id = i
+        player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
+        player.player_id = i
         player.cards = player_cards
 
     game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
@@ -499,7 +490,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
     card_list = []
 
     if is_sort_suit:
-        cards.sort(ranks=pydealer.BIG2_RANKS, key=lambda x: x.suit)
+        cards = sorted(cards.cards, key=lambda x: x.suit)
     else:
         cards.sort(ranks=pydealer.BIG2_RANKS)
 
@@ -615,19 +606,18 @@ def force_stop(bot, update):
 def show_deck(bot, update):
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
-    player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
+    cards = session.query(Player.cards).filter(Player.player_tele_id == player_tele_id).first()[0]
 
-    # Checks if player in game
-    if not player:
+    if not cards:
         bot.send_message(player_tele_id, _("You are not in a game"))
         return
 
-    if player.cards.size == 0:
+    if cards.size == 0:
         bot.send_message(player_tele_id, _("Game has not started yet"))
         return
 
     message = _("Your deck of cards:\n")
-    for card in player.cards:
+    for card in cards:
         message += suit_unicode(card.suit)
         message += " "
         message += str(card.value)
@@ -703,12 +693,9 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     game, player = session.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
-    curr_cards, player_cards = pydealer.Stack(), pydealer.Stack()
-    curr_cards.add(game.curr_cards)
-    player_cards.add(player.cards)
-
-    card = player_cards.get(card_abbrev)[0]
-    curr_cards.add(card)
+    curr_cards = pydealer.Stack(cards=game.curr_cards.cards)
+    player_cards = pydealer.Stack(cards=player.cards.cards)
+    curr_cards.add(player_cards.get(card_abbrev)[0])
     game.curr_cards, player.cards = curr_cards, player_cards
     session.commit()
 
