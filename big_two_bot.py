@@ -111,7 +111,7 @@ def start(bot, update):
     tele_id = update.message.chat.id
     install_lang(tele_id)
 
-    if update.message.chat.type != "group":
+    if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
         message = _("Welcome to Big Two Moderator. Add me into a group and type /startgame to start a game.\n\nYou "
                     "can also type /setlang to change the bot's language.\n\nPlease note that you can only use "
                     "/setlang for changing the bot's language in a group if you are a group admin.")
@@ -834,6 +834,9 @@ def pass_round(bot, job):
         return
 
     return_cards_to_deck(group_tele_id)
+
+    if game.game_round > 1 and game.curr_player == game.biggest_player:
+        game.prev_cards = pydealer.Stack()
     session.commit()
 
     game_message(bot, group_tele_id)
