@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, Text
+from sqlalchemy import Column, Integer
 
 from base import Base
+
 
 class GroupSetting(Base):
     __tablename__ = "group_settings"

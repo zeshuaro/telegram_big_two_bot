@@ -11,7 +11,7 @@ import random
 import re
 import smtplib
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, sql
 from sqlalchemy.orm import sessionmaker
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Chat, ChatMember
@@ -25,6 +25,7 @@ from group_settings import GroupSetting
 from cards import suit_unicode, get_cards_type, are_cards_bigger
 from game import Game
 from player import Player
+from stats import GroupStat, PlayerStat
 
 # Enable logging
 logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %I:%M:%S %p',
@@ -72,6 +73,7 @@ def main():
     dp.add_handler(CommandHandler("join", join, pass_job_queue=True))
     dp.add_handler(CommandHandler("forcestop", force_stop))
     dp.add_handler(CommandHandler("showdeck", show_deck))
+    dp.add_handler(CommandHandler("stats", show_stat))
     dp.add_handler(feedback_cov_handler())
     dp.add_handler(CommandHandler("send", send, pass_args=True))
     dp.add_handler(CommandHandler("status", status))
@@ -626,6 +628,71 @@ def show_deck(bot, update):
     bot.send_message(player_tele_id, message)
 
 
+# Shows stats
+@run_async
+def show_stat(bot, update):
+    if update.message.chat.type in (Chat.PRIVATE, Chat.GROUP, Chat.SUPERGROUP):
+        num_games = session.query(sql.func.sum(GroupStat.num_games)).first()[0]
+        num_games = num_games if num_games else 0
+        num_players = session.query(Language).filter(Language.tele_id > 0).count()
+        num_groups = session.query(Language).filter(Language.tele_id < 0).count()
+
+        text = "Global stats:\n"
+        text += "Total number of games played: %d\n" % num_games
+        text += "Total number of players: %d\n" % num_players
+        text += "Total number of groups: %d\n\n" % num_groups
+
+        if update.message.chat.type == Chat.PRIVATE:
+            show_player_stat(bot, update.message.chat.id, text)
+        else:
+            player_callback_data = "playerStat,%d" % update.message.from_user.id
+            keyboard = [[InlineKeyboardButton(text="Group Stats", callback_data="groupStat"),
+                         InlineKeyboardButton(text="Player Stats", callback_data=player_callback_data)]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            bot.send_message(update.message.chat.id, text, reply_markup=reply_markup)
+
+
+# Sends the player's stats
+def show_player_stat(bot, tele_id, text=""):
+    player_stat = session.query(PlayerStat).filter(PlayerStat.tele_id == tele_id).first()
+
+    if player_stat:
+        num_games, num_cards, win_rate, score = \
+            player_stat.num_games, player_stat.num_cards, player_stat.win_rate, player_stat.score
+
+        text += "Your stats:\n"
+        text += "You played %d games\n" % num_games
+        text += "You used %d cards\n" % num_cards
+        text += "Your win rate is %f%%\n" % win_rate
+        text += "Your score is %d" % score
+    else:
+        text += "I couldn't find any stats about you"
+
+    try:
+        bot.send_message(tele_id, text)
+    except:
+        pass
+
+
+# Sends the group's stats
+def show_group_stat(bot, tele_id):
+    group_stat = session.query(GroupStat).filter(GroupStat.tele_id == tele_id).first()
+
+    if group_stat:
+        num_games, best_win_rate_player, best_win_rate, best_score_player, best_score = \
+            group_stat.num_games, group_stat.best_win_rate_player, group_stat.best_win_rate, \
+            group_stat.best_score_player, group_stat.best_score
+
+        text = "Group's stats:\n"
+        text += "Total number of games played\n" % num_games
+        text += "Highest win rate player: %s (%f%%)\n" % (best_win_rate_player, best_win_rate)
+        text += "Highest score player: %s (%f%%)\n" % (best_score_player, best_score)
+    else:
+        text = "I couldn't find any stats about the group"
+
+    bot.send_message(tele_id, text)
+
+
 # Handles inline buttons
 def in_line_button(bot, update, job_queue):
     query = update.callback_query
@@ -635,6 +702,12 @@ def in_line_button(bot, update, job_queue):
 
     if re.match("set_lang", data):
         change_lang(bot, player_tele_id, message_id, data)
+        return
+    elif data == "groupStat":
+        show_group_stat(bot, player_tele_id)
+        return
+    elif re.match("playerStat", data):
+        show_player_stat(bot, int(data.split(",")[1]))
         return
 
     player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
