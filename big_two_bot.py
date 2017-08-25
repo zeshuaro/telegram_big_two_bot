@@ -287,8 +287,8 @@ def start_game(bot, update, job_queue):
     text = _("[%s] has started Big Two. Type /join to join the game\n\n" % player_name)
 
     bot.send_message(chat_id=group_tele_id,
-                    text=text,
-                    disable_notification=True)
+                     text=text,
+                     disable_notification=True)
 
     join(bot, update, job_queue)
 
@@ -377,8 +377,8 @@ def join(bot, update, job_queue):
             text += _("%ss left to join") % join_timer
 
         bot.send_message(chat_id=group_tele_id,
-                        text=text,
-                        disable_notification=True)
+                         text=text,
+                         disable_notification=True)
 
         install_lang(player_tele_id)
         bot.send_message(player_tele_id, _("You have joined the game in the group [%s]") % group_name)
@@ -393,8 +393,8 @@ def join(bot, update, job_queue):
                 text += _("Each player has 45s to pick your cards")
 
             bot.send_message(chat_id=group_tele_id,
-                            text=text,
-                            disable_notification=True)
+                             text=text,
+                             disable_notification=True)
 
             setup_game(group_tele_id)
             game_message(bot, group_tele_id)
@@ -412,9 +412,9 @@ def stop_empty_game(bot, job):
 
 # Sets up a game
 def setup_game(group_tele_id):
-    tele_ids = session.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
+    player_tele_ids = session.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
     if not is_testing:
-        random.shuffle(tele_ids)
+        random.shuffle(player_tele_ids)
 
     # Creates a deck of cards in random order
     deck = pydealer.Deck(ranks=pydealer.BIG2_RANKS)
@@ -423,7 +423,7 @@ def setup_game(group_tele_id):
     # Sets up players
     curr_player = -1
 
-    for i, tele_id in enumerate(tele_ids):
+    for i, player_tele_id in enumerate(player_tele_ids):
         player_cards = pydealer.Stack(cards=deck.deal(13))
         player_cards.sort(ranks=pydealer.BIG2_RANKS)
 
@@ -432,7 +432,7 @@ def setup_game(group_tele_id):
             curr_player = i
 
         player = session.query(Player). \
-            filter(Player.group_tele_id == group_tele_id, Player.player_tele_id == tele_id).first()
+            filter(Player.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id).first()
 
         if not is_testing:
             player.player_id = i
@@ -448,8 +448,8 @@ def game_message(bot, group_tele_id):
     install_lang(group_tele_id)
     text = ""
 
-    game_round, curr_player, biggest_player, curr_player_name = session.\
-        query(Game.game_round, Game.curr_player, Game.biggest_player, Player.player_name).\
+    game_round, curr_player, biggest_player, curr_player_name = session. \
+        query(Game.game_round, Game.curr_player, Game.biggest_player, Player.player_name). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
     if game_round > 1 and curr_player != (biggest_player + 1) % 4:
@@ -473,7 +473,7 @@ def game_message(bot, group_tele_id):
 def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None):
     text = ""
 
-    game, player = session.query(Game, Player).\
+    game, player = session.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, cards = \
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards
@@ -544,9 +544,9 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
 def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
     text = ""
 
-    player_name = session.query(Player.player_name).\
+    player_name = session.query(Player.player_name). \
         filter(Player.group_tele_id == group_tele_id, Player.player_id == curr_player).first()
-    biggest_player_name = session.query(Player.player_name).\
+    biggest_player_name = session.query(Player.player_name). \
         filter(Player.group_tele_id == group_tele_id, Player.player_id == biggest_player).first()
 
     # Stores the number of cards that each player has
@@ -654,9 +654,9 @@ def in_line_button(bot, update, job_queue):
         return
 
     group_tele_id = player.group_tele_id
-    if not session.query(Game, Player).\
-        filter(Game.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id,
-               Game.curr_player == Player.player_id).first():
+    if not session.query(Game, Player). \
+            filter(Game.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id,
+                   Game.curr_player == Player.player_id).first():
         return
 
     queued_jobs[group_tele_id].schedule_removal()
@@ -700,7 +700,7 @@ def change_lang(bot, tele_id, message_id, data):
 
 # Adds a selected card
 def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
-    game, player = session.query(Game, Player).\
+    game, player = session.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
     curr_cards, player_cards = pydealer.Stack(), pydealer.Stack()
@@ -721,7 +721,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     valid = True
     bigger = True
 
-    game, player = session.query(Game, Player).\
+    game, player = session.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, curr_cards, prev_cards = \
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards, game.prev_cards
@@ -772,7 +772,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
 
 # Retruns curr_cards to the player's deck
 def return_cards_to_deck(group_tele_id):
-    game, player = session.query(Game, Player).\
+    game, player = session.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
     curr_cards = game.curr_cards
@@ -813,7 +813,7 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
 
     install_lang(group_tele_id)
     message = _("These cards have been used:\n")
-    for card in curr_cards:
+    for card in curr_cards.cards:
         message += suit_unicode(card.suit)
         message += " "
         message += str(card.value)
