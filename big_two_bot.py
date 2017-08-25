@@ -167,23 +167,22 @@ def donate(bot, update):
 # Sends set language message
 @run_async
 def set_lang(bot, update):
-    if update.message.chat.type == "private":
+    if update.message.chat.type == Chat.PRIVATE:
         tele_id = update.message.from_user.id
         install_lang(tele_id)
         message = _("Pick your default language from below\n\n")
-    elif update.message.chat.type == "group":
+    elif update.message.chat.type in (Chat.GROUP, Chat.SUPERGROUP):
         tele_id = update.message.chat.id
         install_lang(tele_id)
         message = _("Pick the group's default language from below\n\n")
-        is_admin = False
-        admins = bot.get_chat_administrators(tele_id)
 
-        for admin in admins:
-            if admin.user.id == update.message.from_user.id:
-                is_admin = True
-                break
+        member = bot.get_chat_member(update.message.chat.id, update.message.from_user.id)
+        if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.CREATOR):
+            try:
+                bot.sendMessage(update.message.from_user.id, _("You are not a group admin"))
+            except:
+                pass
 
-        if not is_admin:
             return
     else:
         return
@@ -471,7 +470,7 @@ def game_message(bot, group_tele_id):
 
 
 # Sends message to player
-def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None, message=None):
+def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None):
     text = ""
 
     game, player = session.query(Game, Player).\
@@ -511,7 +510,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
         show_card += " "
         show_card += str(card.value)
 
-        card_list.append(InlineKeyboardButton(text=show_card,callback_data=card.abbrev))
+        card_list.append(InlineKeyboardButton(text=show_card, callback_data=card.abbrev))
 
     keyboard = [card_list[i:i + 4] for i in range(0, len(card_list), 4)]
     keyboard.append([InlineKeyboardButton(text=_("Unselect"), callback_data="unselect"),
@@ -719,7 +718,7 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     game.curr_cards, player.cards = curr_cards, player_cards
     session.commit()
 
-    player_message(bot, group_tele_id, job_queue)
+    player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
 
 
 # Uses the selected cards
