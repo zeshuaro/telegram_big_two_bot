@@ -1,5 +1,3 @@
-import pydealer
-
 from sqlalchemy import Column, Integer, Text, PickleType, ForeignKey
 from sqlalchemy.orm import relationship
 

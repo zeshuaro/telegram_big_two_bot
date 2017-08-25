@@ -116,7 +116,7 @@ def start(bot, update):
                     "can also type /setlang to change the bot's language.\n\nPlease note that you can only use "
                     "/setlang for changing the bot's language in a group if you are a group admin.")
 
-        bot.sendMessage(tele_id, message)
+        bot.send_message(tele_id, message)
 
 
 # Sends help message
@@ -132,7 +132,7 @@ def help_msg(bot, update):
                 "running.\n\nYou can only force to stop a game if you are a group admin.\n\nUse /command to get a "
                 "list of commands to see what I can do.")
 
-    bot.sendMessage(player_tele_id, message, reply_markup=reply_markup)
+    bot.send_message(player_tele_id, message, reply_markup=reply_markup)
 
 
 # Sends command message
@@ -151,7 +151,7 @@ def command(bot, update):
                 "/help - How to use the bot\n"
                 "/donate - Support my developer!")
 
-    bot.sendMessage(player_tele_id, message)
+    bot.send_message(player_tele_id, message)
 
 
 # Sends donate message
@@ -179,7 +179,7 @@ def set_lang(bot, update):
         member = bot.get_chat_member(update.message.chat.id, update.message.from_user.id)
         if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.CREATOR):
             try:
-                bot.sendMessage(update.message.from_user.id, _("You are not a group admin"))
+                bot.send_message(update.message.from_user.id, _("You are not a group admin"))
             except:
                 pass
 
@@ -193,7 +193,7 @@ def set_lang(bot, update):
                  InlineKeyboardButton("简体中文", callback_data="set_lang,zh-cn")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    bot.sendMessage(tele_id, message, reply_markup=reply_markup)
+    bot.send_message(tele_id, message, reply_markup=reply_markup)
 
 
 # Sets join timer
@@ -216,16 +216,16 @@ def set_game_timer(bot, update, timer_type, timer):
 
     if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
         message = _("You can only use this command in a group")
-        bot.sendMessage(player_tele_id, message)
+        bot.send_message(player_tele_id, message)
         return
 
     member = bot.get_chat_member(group_tele_id, player_tele_id)
     if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.CREATOR):
-        bot.sendMessage(player_tele_id, _("You are not a group admin"))
+        bot.send_message(player_tele_id, _("You are not a group admin"))
         return
 
     if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
-        bot.sendMessage(player_tele_id, _("You can only change the timer when a game is not running"))
+        bot.send_message(player_tele_id, _("You can only change the timer when a game is not running"))
         return
 
     install_lang(group_tele_id)
@@ -236,7 +236,7 @@ def set_game_timer(bot, update, timer_type, timer):
             message = _("Join timer can only be set between 10s to 60s")
         else:
             message = _("Pass timer can only be set between 20s to 120s")
-        bot.sendMessage(group_tele_id, message)
+        bot.send_message(group_tele_id, message)
         return
 
     timer = int(timer)
@@ -268,14 +268,14 @@ def start_game(bot, update, job_queue):
     install_lang(update.message.from_user.id)
 
     if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
-        bot.sendMessage(group_tele_id, _("You can only use this command in a group"))
+        bot.send_message(group_tele_id, _("You can only use this command in a group"))
         return
 
     if not can_msg_player(bot, update):
         return
 
     if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
-        bot.sendMessage(update.message.from_user.id, _("A game has already been started"))
+        bot.send_message(update.message.from_user.id, _("A game has already been started"))
         return
 
     game = Game(group_tele_id=group_tele_id, game_round=1, curr_player=-1, biggest_player=-1, count_pass=0,
@@ -286,7 +286,7 @@ def start_game(bot, update, job_queue):
     install_lang(group_tele_id)
     text = _("[%s] has started Big Two. Type /join to join the game\n\n" % player_name)
 
-    bot.sendMessage(chat_id=group_tele_id,
+    bot.send_message(chat_id=group_tele_id,
                     text=text,
                     disable_notification=True)
 
@@ -334,7 +334,7 @@ def join(bot, update, job_queue):
     install_lang(player_tele_id)
 
     if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
-        bot.sendMessage(player_tele_id, _("You can only use this command in a group"))
+        bot.send_message(player_tele_id, _("You can only use this command in a group"))
         return
 
     if not can_msg_player(bot, update):
@@ -343,13 +343,13 @@ def join(bot, update, job_queue):
     # Checks if there exists a game
     if not session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
         text = _("A game has not been started yet. Type /startgame in a group to start a game.")
-        bot.sendMessage(player_tele_id, text)
+        bot.send_message(player_tele_id, text)
         return
 
     # Checks if player is in game
     if not is_testing:
         if session.query(Player).filter(Player.player_tele_id == player_tele_id).first():
-            bot.sendMessage(player_tele_id, _("You have already joined a game"))
+            bot.send_message(player_tele_id, _("You have already joined a game"))
             return
 
     num_players = session.query(Player).filter(Player.group_tele_id == group_tele_id).count()
@@ -376,7 +376,7 @@ def join(bot, update, job_queue):
             queued_jobs[group_tele_id] = job
             text += _("%ss left to join") % join_timer
 
-        bot.sendMessage(chat_id=group_tele_id,
+        bot.send_message(chat_id=group_tele_id,
                         text=text,
                         disable_notification=True)
 
@@ -392,7 +392,7 @@ def join(bot, update, job_queue):
             else:
                 text += _("Each player has 45s to pick your cards")
 
-            bot.sendMessage(chat_id=group_tele_id,
+            bot.send_message(chat_id=group_tele_id,
                             text=text,
                             disable_notification=True)
 
@@ -466,7 +466,7 @@ def game_message(bot, group_tele_id):
 
     text += get_game_message(group_tele_id, game_round, curr_player, biggest_player)
 
-    bot.sendMessage(group_tele_id, text, disable_notification=True)
+    bot.send_message(group_tele_id, text, disable_notification=True)
 
 
 # Sends message to player
@@ -494,8 +494,6 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
             text += "\n"
 
         text += "--------------------------------------\n"
-
-    text += _("Pick the cards that you will like to use from below, one at a time. Press done when you are finished")
 
     cards = player.cards
     card_list = []
@@ -526,14 +524,10 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if is_edit:
-        bot_message = bot.editMessageText(text=text,
-                                          chat_id=player_tele_id,
-                                          message_id=message_id,
+        bot_message = bot.editMessageText(text=text, chat_id=player_tele_id, message_id=message_id,
                                           reply_markup=reply_markup)
     else:
-        bot_message = bot.sendMessage(chat_id=player_tele_id,
-                                      text=text,
-                                      reply_markup=reply_markup)
+        bot_message = bot.send_message(chat_id=player_tele_id, text=text, reply_markup=reply_markup)
 
     job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, bot_message.message_id)
     pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.group_tele_id == group_tele_id).first()
@@ -596,22 +590,22 @@ def force_stop(bot, update):
     install_lang(player_tele_id)
 
     if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
-        bot.sendMessage(player_tele_id, _("You can only use this command in a group"))
+        bot.send_message(player_tele_id, _("You can only use this command in a group"))
         return
 
     member = bot.get_chat_member(group_tele_id, player_tele_id)
     if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.CREATOR):
-        bot.sendMessage(player_tele_id, _("You are not a group admin"))
+        bot.send_message(player_tele_id, _("You are not a group admin"))
         return
 
     if not session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
-        bot.sendMessage(player_tele_id, _("No game is running at the moment"))
+        bot.send_message(player_tele_id, _("No game is running at the moment"))
         return
 
     install_lang(group_tele_id)
     message = (_("Game has been stopped by [%s]") %
                update.message.from_user.first_name)
-    bot.sendMessage(group_tele_id, message)
+    bot.send_message(group_tele_id, message)
 
     delete_game_data(group_tele_id)
 
@@ -625,11 +619,11 @@ def show_deck(bot, update):
 
     # Checks if player in game
     if not player:
-        bot.sendMessage(player_tele_id, _("You are not in a game"))
+        bot.send_message(player_tele_id, _("You are not in a game"))
         return
 
     if player.cards.size == 0:
-        bot.sendMessage(player_tele_id, _("Game has not started yet"))
+        bot.send_message(player_tele_id, _("Game has not started yet"))
         return
 
     message = _("Your deck of cards:\n")
@@ -639,7 +633,7 @@ def show_deck(bot, update):
         message += str(card.value)
         message += "\n"
 
-    bot.sendMessage(player_tele_id, message)
+    bot.send_message(player_tele_id, message)
 
 
 # Handles inline buttons
@@ -667,7 +661,7 @@ def in_line_button(bot, update, job_queue):
 
     queued_jobs[group_tele_id].schedule_removal()
 
-    if re.match("([2-9]|J|Q|K|A)[DCHS]", data):
+    if re.match("[2-9JQKA][DCHS]", data):
         add_use_card(bot, group_tele_id, message_id, data, job_queue)
     elif data == "useCards":
         use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue)
@@ -733,9 +727,6 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards, game.prev_cards
     player_name, num_cards = player.player_name, player.cards.size
 
-    prev_cards.sort(ranks=pydealer.BIG2_RANKS)
-    curr_cards.sort(ranks=pydealer.BIG2_RANKS)
-
     if curr_cards.size == 0:
         return
 
@@ -767,7 +758,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
             finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards)
             return
 
-        game.curr_cards.empty()
+        game.curr_cards = pydealer.Stack()
         game.prev_cards = curr_cards
         session.commit()
         advance_game(bot, group_tele_id, curr_player, player_name, curr_cards)
@@ -776,7 +767,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
         player_message(bot, group_tele_id, job_queue)
     else:
         player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
-        bot.sendMessage(player_tele_id, message)
+        bot.send_message(player_tele_id, message)
 
 
 # Retruns curr_cards to the player's deck
@@ -808,17 +799,17 @@ def advance_game(bot, group_tele_id, curr_player, player_name, curr_cards):
         message += "--------------------------------------\n"
         message += _("%s's Turn\n") % player_name
 
-        bot.sendMessage(group_tele_id, message, disable_notification=True)
+        bot.send_message(group_tele_id, message, disable_notification=True)
 
 
 # Game over
 def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards):
-    bot.sendMessage(player_tele_id, _("You won!"))
+    bot.send_message(player_tele_id, _("You won!"))
 
     players = session.query(Player).filter(Player.group_tele_id == group_tele_id, Player.player_id != curr_player)
     for player in players:
         install_lang(player.player_tele_id)
-        bot.sendMessage(player.player_tele_id, _("You lost!"))
+        bot.send_message(player.player_tele_id, _("You lost!"))
 
     install_lang(group_tele_id)
     message = _("These cards have been used:\n")
@@ -830,7 +821,7 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
     message += "--------------------------------------\n"
     message += _("%s won!") % player_name
 
-    bot.sendMessage(group_tele_id, message, disable_notification=True)
+    bot.send_message(group_tele_id, message, disable_notification=True)
 
     delete_game_data(group_tele_id)
 
@@ -865,7 +856,7 @@ def pass_round(bot, job):
 def stop_idle_game(bot, group_tele_id):
     install_lang(group_tele_id)
     message = _("Game has been stopped by me since no one is playing")
-    bot.sendMessage(group_tele_id, message)
+    bot.send_message(group_tele_id, message)
 
     delete_game_data(group_tele_id)
 

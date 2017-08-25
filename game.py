@@ -1,13 +1,6 @@
-#!/usr/bin/env python3
-
-import pydealer
-
 from sqlalchemy import Column, Integer, PickleType
-from sqlalchemy.ext.hybrid import hybrid_property
 
 from base import Base
-from cards import suit_unicode, get_cards_type, are_cards_bigger
-from player import Player
 
 
 class Game(Base):
