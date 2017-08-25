@@ -352,7 +352,7 @@ def join(bot, update, job_queue):
     # Checks for valid number of players
     if num_players < 4:
         player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
-                        player_id=num_players, cards=pydealer.Stack())
+                        player_id=num_players, cards=pydealer.Stack(), num_cards=13)
         session.add(player)
         session.commit()
         num_players += 1
@@ -544,9 +544,9 @@ def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
     playes_info = {}
     players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
     for player in players:
-        player_id, player_name, cards = player.player_id, player.player_name, player.cards
+        player_id, player_name, num_cards = player.player_id, player.player_name, player.num_cards
         player = "%d. %s" % (player_id, player_name)
-        playes_info[player] = cards.size
+        playes_info[player] = num_cards
 
     # Displays the number of cards that each player has
     for player in sorted(playes_info.keys()):
@@ -683,9 +683,7 @@ def change_lang(bot, tele_id, message_id, data):
 
     session.commit()
     install_lang(tele_id)
-    bot.editMessageText(text=_("Default language has been set"),
-                        chat_id=tele_id,
-                        message_id=message_id)
+    bot.editMessageText(text=_("Default language has been set"), chat_id=tele_id, message_id=message_id)
 
 
 # Adds a selected card
@@ -712,7 +710,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, curr_cards, prev_cards = \
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards, game.prev_cards
-    player_name, num_cards = player.player_name, player.cards.size
+    player_name, num_cards = player.player_name, player.num_cards
 
     if curr_cards.size == 0:
         return
@@ -747,6 +745,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
 
         game.curr_cards = pydealer.Stack()
         game.prev_cards = curr_cards
+        player.num_cards = new_num_cards
         session.commit()
         advance_game(bot, group_tele_id, curr_player, player_name, curr_cards)
 

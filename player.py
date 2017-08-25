@@ -10,3 +10,4 @@ class Player(Base):
     player_name = Column(Text)
     player_id = Column(Integer)
     cards = Column(PickleType)
+    num_cards = Column(Integer)
