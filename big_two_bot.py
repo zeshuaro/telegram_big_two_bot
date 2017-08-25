@@ -691,8 +691,8 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     game, player = session.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
-    curr_cards = pydealer.Stack(cards=game.curr_cards.cards)
-    player_cards = pydealer.Stack(cards=player.cards.cards)
+    curr_cards = pydealer.Stack(cards=game.curr_cards)
+    player_cards = pydealer.Stack(cards=player.cards)
     curr_cards.add(player_cards.get(card_abbrev)[0])
     game.curr_cards, player.cards = curr_cards, player_cards
     session.commit()
@@ -732,9 +732,9 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     else:
         message = _("These cards have been used:\n")
         for card in curr_cards:
-            message += str(card.show_suit)
+            message += suit_unicode(card.suit)
             message += " "
-            message += str(card.show_num)
+            message += str(card.value)
             message += "\n"
         bot.editMessageText(message, player_tele_id, message_id)
 
@@ -762,8 +762,10 @@ def return_cards_to_deck(group_tele_id):
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
     curr_cards = game.curr_cards
-    player.cards.add(curr_cards)
-    game.curr_cards.empty()
+    player_cards = pydealer.Stack(cards=player.cards)
+    player_cards.add(curr_cards)
+    game.curr_cards = pydealer.Stack()
+    player.cards = player_cards
     session.commit()
 
 
