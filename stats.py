@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, Text, Float
-from sqlalchemy.orm import relationship
 
 from base import Base
 
@@ -11,8 +10,8 @@ class GroupStat(Base):
     num_games = Column(Integer)
     best_win_rate_player = Column(Text)
     best_win_rate = Column(Float)
-    best_score_player = Column(Text)
-    best_score = Column(Integer)
+    most_money_earned_player = Column(Text)
+    most_money_earned = Column(Integer)
 
 
 class PlayerStat(Base):
@@ -24,4 +23,5 @@ class PlayerStat(Base):
     num_games_won = Column(Integer)
     num_cards = Column(Integer)
     win_rate = Column(Float)
-    score = Column(Integer)
+    money = Column(Integer)
+    money_earned = Column(Integer)

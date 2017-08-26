@@ -23,6 +23,7 @@ import base
 from languages import Language
 from group_settings import GroupSetting
 from cards import suit_unicode, get_cards_type, are_cards_bigger
+from money import get_money_lost
 from game import Game
 from player import Player
 from stats import GroupStat, PlayerStat
@@ -51,7 +52,8 @@ base.Base.metadata.create_all(engine, checkfirst=True)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# Queued jobs
+init_money = 1000
+card_money = 5
 queued_jobs = {}
 
 
@@ -97,16 +99,6 @@ def main():
     updater.idle()
 
 
-# Deletes game data with the given group telegram ID
-def delete_game_data(group_tele_id):
-    if group_tele_id in queued_jobs:
-        queued_jobs[group_tele_id].schedule_removal()
-
-    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
-    session.delete(game)
-    session.commit()
-
-
 # Sends start message
 @run_async
 def start(bot, update):
@@ -119,6 +111,15 @@ def start(bot, update):
                     "/setlang for changing the bot's language in a group if you are a group admin.")
 
         bot.send_message(tele_id, message)
+        make_player_stat(tele_id, update.message.from_user.first_name)
+
+
+def make_player_stat(player_tele_id, player_name):
+    if not session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id):
+        player_stat = PlayerStat(tele_id=player_tele_id, player_name=player_name, num_games=0, num_games_won=0,
+                                 num_cards=0, win_rate=0, money=init_money, money_earned=0)
+        session.add(player_stat)
+        session.commit()
 
 
 # Sends help message
@@ -407,6 +408,16 @@ def stop_empty_game(bot, job):
     delete_game_data(group_tele_id)
 
 
+# Deletes game data with the given group telegram ID
+def delete_game_data(group_tele_id):
+    if group_tele_id in queued_jobs:
+        queued_jobs[group_tele_id].schedule_removal()
+
+    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    session.delete(game)
+    session.commit()
+
+
 # Sets up a game
 def setup_game(group_tele_id):
     player_tele_ids = session.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
@@ -520,8 +531,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
 
     if is_edit:
         try:
-            bot.editMessageText(text=text, chat_id=player_tele_id, message_id=message_id,
-                                reply_markup=reply_markup)
+            bot.editMessageText(text=text, chat_id=player_tele_id, message_id=message_id, reply_markup=reply_markup)
         except:
             pass
     else:
@@ -624,14 +634,14 @@ def show_deck(bot, update):
         bot.send_message(player_tele_id, _("Game has not started yet"))
         return
 
-    message = _("Your deck of cards:\n")
+    text = _("Your deck of cards:\n")
     for card in cards:
-        message += suit_unicode(card.suit)
-        message += " "
-        message += str(card.value)
-        message += "\n"
+        text += suit_unicode(card.suit)
+        text += " "
+        text += str(card.value)
+        text += "\n"
 
-    bot.send_message(player_tele_id, message)
+    bot.send_message(player_tele_id, text)
 
 
 # Shows stats
@@ -663,14 +673,15 @@ def show_player_stat(bot, tele_id, text=""):
     player_stat = session.query(PlayerStat).filter(PlayerStat.tele_id == tele_id).first()
 
     if player_stat:
-        num_games, num_cards, win_rate, score = \
-            player_stat.num_games, player_stat.num_cards, player_stat.win_rate, player_stat.score
+        num_games, num_cards, win_rate, money, money_earned = \
+            player_stat.num_games, player_stat.num_cards, player_stat.win_rate, player_stat.money, \
+            player_stat.money_earned
 
-        text += "Your stats:\n"
+        text += "You have $%d\n" % money
         text += "You played %d games\n" % num_games
         text += "You used %d cards\n" % num_cards
         text += "Your win rate is %f%%\n" % win_rate
-        # text += "Your score is %d" % score
+        text += "You earned $%d" % money_earned
     else:
         text += "I couldn't find any stats about you"
 
@@ -685,14 +696,14 @@ def show_group_stat(bot, tele_id):
     group_stat = session.query(GroupStat).filter(GroupStat.tele_id == tele_id).first()
 
     if group_stat:
-        num_games, best_win_rate_player, best_win_rate, best_score_player, best_score = \
+        num_games, best_win_rate_player, best_win_rate, most_money_earned_player, most_money_earned = \
             group_stat.num_games, group_stat.best_win_rate_player, group_stat.best_win_rate, \
-            group_stat.best_score_player, group_stat.best_score
+            group_stat.most_money_earned_player, group_stat.most_money_earned
 
         text = "Group's stats:\n"
         text += "Total number of games played: %d\n" % num_games
         text += "Highest win rate player: %s (%f%%)\n" % (best_win_rate_player, best_win_rate)
-        # text += "Highest score player: %s (%f%%)\n" % (best_score_player, best_score)
+        text += "Most money earned player: %s ($%d)\n" % (most_money_earned_player, most_money_earned)
     else:
         text = "I couldn't find any stats about the group"
 
@@ -862,10 +873,11 @@ def advance_game(bot, group_tele_id, curr_player, player_name, curr_cards):
     game_message(bot, group_tele_id)
 
     if curr_cards.size == 1 and curr_cards.find("2S"):
-        game.curr_player = (curr_player - 1) % 4
+        game.curr_player = curr_player
+        game.biggest_player = curr_player
         session.commit()
 
-        message = (_("I have passed all players since %s has used ♠2\n") % player_name)
+        message = (_("I have passed all players since %s has used ♠ 2\n") % player_name)
         message += "--------------------------------------\n"
         message += _("%s's Turn\n") % player_name
 
@@ -897,14 +909,17 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
     delete_game_data(group_tele_id)
 
 
+# Updates group and player stats
 def update_stats(group_tele_id, won_player):
     players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
     group_stat = session.query(GroupStat).filter(GroupStat.tele_id == group_tele_id).first()
+    num_cards_left = sum([player.cards.size for player in players])
+    money_earned = 0
 
     if group_stat:
         group_stat.num_games += 1
     else:
-        group_stat = GroupStat(tele_id=group_tele_id, num_games=1, best_win_rate=0, best_score=0)
+        group_stat = GroupStat(tele_id=group_tele_id, num_games=1, best_win_rate=0, most_money_earned=0)
         session.add(group_stat)
 
     for player in players:
@@ -917,18 +932,30 @@ def update_stats(group_tele_id, won_player):
             player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
         else:
             player_stat = PlayerStat(tele_id=player.player_tele_id, player_name=player.player_name, num_games=1,
-                                     num_cards=13 - player.cards.size)
+                                     num_cards=13 - player.cards.size, money=init_money, money_earned=0)
             player_stat.num_games_won = 1 if player.player_id == won_player else 0
             player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
             session.add(player_stat)
+
+        if player.player_id != won_player:
+            money_lost = get_money_lost(player.cards, card_money, num_cards_left)
+            player_stat.money -= money_lost
+            player_stat.money_earned -= money_lost
+            money_earned += money_lost
 
         if player_stat.win_rate > group_stat.best_win_rate:
             group_stat.best_win_rate = player_stat.win_rate
             group_stat.best_win_rate_player = player.player_name
 
-            # if player_stat.score > group_stat.best_score:
-            #     group_stat.best_score = player_stat.score
-            #     group_stat.best_score_player = player.player_name
+        if player_stat.money_earned > group_stat.most_money_earned:
+            group_stat.most_money_earned = player_stat.money_earned
+            group_stat.most_money_earned_player = player.player_name
+
+    player_stat = session.query(PlayerStat).\
+        filter(PlayerStat.tele_id == Player.player_tele_id, Player.group_tele_id == group_tele_id,
+               Player.player_id == won_player).first()
+    player_stat.money += money_earned
+    player_stat.money_earned += money_earned
 
     session.commit()
 
