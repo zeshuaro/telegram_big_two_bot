@@ -73,21 +73,25 @@ def main():
     dp.add_handler(CommandHandler("help", help_msg))
     dp.add_handler(CommandHandler("command", command))
     dp.add_handler(CommandHandler("donate", donate))
+
     dp.add_handler(CommandHandler("setlang", set_lang))
     dp.add_handler(CommandHandler("setjointimer", set_join_timer, pass_args=True))
     dp.add_handler(CommandHandler("setpasstimer", set_pass_timer, pass_args=True))
     dp.add_handler(CommandHandler("setgamemode", set_game_mode, pass_args=True))
+
     dp.add_handler(CommandHandler("startgame", start_game, pass_job_queue=True))
     dp.add_handler(CommandHandler("join", join, pass_job_queue=True))
     dp.add_handler(CommandHandler("forcestop", force_stop))
     dp.add_handler(CommandHandler("showdeck", show_deck))
     dp.add_handler(CommandHandler("stats", show_stat))
+    dp.add_handler(CallbackQueryHandler(in_line_button, pass_job_queue=True))
+    
     dp.add_handler(CommandHandler("coffee", recharge))
     dp.add_handler(PreCheckoutQueryHandler(precheckout_recharge))
     dp.add_handler(MessageHandler(Filters.successful_payment, successful_recharge, pass_job_queue=True))
+
     dp.add_handler(feedback_cov_handler())
     dp.add_handler(CommandHandler("send", send, pass_args=True))
-    dp.add_handler(CallbackQueryHandler(in_line_button, pass_job_queue=True))
 
     # log all errors
     dp.add_error_handler(error)
