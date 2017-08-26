@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import arrow
 import dotenv
 import gettext
 import langdetect
@@ -14,9 +15,10 @@ import smtplib
 from sqlalchemy import create_engine, sql
 from sqlalchemy.orm import sessionmaker
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Chat, ChatMember
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Chat, ChatMember, LabeledPrice
 from telegram.error import TelegramError, Unauthorized
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler,\
+    PreCheckoutQueryHandler
 from telegram.ext.dispatcher import run_async
 
 import base
@@ -39,6 +41,7 @@ app_url = os.environ.get("APP_URL")
 port = int(os.environ.get('PORT', '5000'))
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN_BETA", os.environ.get("TELEGRAM_TOKEN"))
+payment_token = os.environ.get("PAYMENT_TOKEN_TEST", os.environ.get("PAYMENT_TOKEN"))
 dev_tele_id = int(os.environ.get("DEV_TELE_ID"))
 dev_email = os.environ.get("DEV_EMAIL", "sample@email.com")
 dev_email_pw = os.environ.get("DEV_EMAIL_PW")
@@ -54,7 +57,9 @@ session = Session()
 
 init_money = 1000
 card_money = 5
+recharge_delay = 10
 queued_jobs = {}
+recharge_times = {}
 
 
 def main():
@@ -77,9 +82,11 @@ def main():
     dp.add_handler(CommandHandler("forcestop", force_stop))
     dp.add_handler(CommandHandler("showdeck", show_deck))
     dp.add_handler(CommandHandler("stats", show_stat))
+    dp.add_handler(CommandHandler("coffee", recharge))
+    dp.add_handler(PreCheckoutQueryHandler(precheckout_recharge))
+    dp.add_handler(MessageHandler(Filters.successful_payment, successful_recharge, pass_job_queue=True))
     dp.add_handler(feedback_cov_handler())
     dp.add_handler(CommandHandler("send", send, pass_args=True))
-    dp.add_handler(CommandHandler("status", status))
     dp.add_handler(CallbackQueryHandler(in_line_button, pass_job_queue=True))
 
     # log all errors
@@ -117,7 +124,7 @@ def start(bot, update):
 
 # Creates player's stats
 def make_player_stat(player_tele_id, player_name):
-    if not session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id):
+    if not session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first():
         player_stat = PlayerStat(tele_id=player_tele_id, player_name=player_name, num_games=0, num_games_won=0,
                                  num_cards=0, win_rate=0, money=init_money, money_earned=0)
         session.add(player_stat)
@@ -337,7 +344,7 @@ def start_game(bot, update, job_queue):
 
 # Creates group settings
 def make_group_setting(group_tele_id):
-    if not session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id):
+    if not session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first():
         group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45, money_mode=False)
         session.add(group_settings)
         session.commit()
@@ -406,9 +413,14 @@ def join(bot, update, job_queue):
             filter(GroupSetting.tele_id == group_tele_id).first()
 
         if money_mode:
-            player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()
-            if player_money <= 0:
-                bot.send_message(player_tele_id, "You don't have any money left to join the game.")
+            player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
+            if player_money == 0:
+                recharge_time = recharge_times[player_tele_id].shift(seconds=recharge_delay)
+                text = "You don't have any money left to join the game.\n\n"
+                text += "You can consider to buy me a /coffee to recharge your money immediately.\n\n"
+                text += "Or wait for your money to be recharged %s." % recharge_time.humanize()
+
+                bot.send_message(player_tele_id, text)
                 return
 
         player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
@@ -584,7 +596,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
         message_id = bot_message.message_id
 
     job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
-    pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.tele_id == group_tele_id).first()
+    pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.tele_id == group_tele_id).first()[0]
     job = job_queue.run_once(pass_round, pass_timer, context=job_context)
     queued_jobs[group_tele_id] = job
 
@@ -693,7 +705,7 @@ def show_stat(bot, update):
         num_players = session.query(Language).filter(Language.tele_id > 0).count()
         num_groups = session.query(Language).filter(Language.tele_id < 0).count()
 
-        text = "Global stats:\n"
+        text = "*Global stats*\n"
         text += "Total number of games played: %d\n" % num_games
         text += "Total number of players: %d\n" % num_players
         text += "Total number of groups: %d\n\n" % num_groups
@@ -705,7 +717,7 @@ def show_stat(bot, update):
             keyboard = [[InlineKeyboardButton(text="Group Stats", callback_data="groupStat"),
                          InlineKeyboardButton(text="Player Stats", callback_data=player_callback_data)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            bot.send_message(update.message.chat.id, text, reply_markup=reply_markup)
+            bot.send_message(update.message.chat.id, text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
 # Sends the player's stats
@@ -717,16 +729,17 @@ def show_player_stat(bot, tele_id, text=""):
             player_stat.num_games, player_stat.num_cards, player_stat.win_rate, player_stat.money, \
             player_stat.money_earned
 
+        text += "*Player stats*\n"
         text += "You have $%d\n" % money
         text += "You played %d games\n" % num_games
         text += "You used %d cards\n" % num_cards
-        text += "Your win rate is %f%%\n" % win_rate
+        text += "Your win rate is {:.2f}%\n".format(win_rate)
         text += "You earned $%d" % money_earned
     else:
         text += "I couldn't find any stats about you"
 
     try:
-        bot.send_message(tele_id, text)
+        bot.send_message(tele_id, text, parse_mode="Markdown")
     except:
         pass
 
@@ -740,14 +753,14 @@ def show_group_stat(bot, tele_id):
             group_stat.num_games, group_stat.best_win_rate_player, group_stat.best_win_rate, \
             group_stat.most_money_earned_player, group_stat.most_money_earned
 
-        text = "Group's stats:\n"
+        text = "*Group stats*\n"
         text += "Total number of games played: %d\n" % num_games
-        text += "Highest win rate player: %s (%f%%)\n" % (best_win_rate_player, best_win_rate)
+        text += "Highest win rate player: {} ({:.2f}%)\n".format(best_win_rate_player, best_win_rate)
         text += "Most money earned player: %s ($%d)\n" % (most_money_earned_player, most_money_earned)
     else:
         text = "I couldn't find any stats about the group"
 
-    bot.send_message(tele_id, text)
+    bot.send_message(tele_id, text, parse_mode="Markdown")
 
 
 # Handles inline buttons
@@ -872,7 +885,7 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
 
         new_num_cards = num_cards - curr_cards.size
         if new_num_cards == 0:
-            finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards)
+            finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards, job_queue)
             return
 
         game.curr_cards = pydealer.Stack()
@@ -925,7 +938,7 @@ def advance_game(bot, group_tele_id, curr_player, player_name, curr_cards):
 
 
 # Game over
-def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards):
+def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards, job_queue):
     bot.send_message(player_tele_id, _("You won!"))
 
     players = session.query(Player).filter(Player.group_tele_id == group_tele_id, Player.player_id != curr_player)
@@ -945,13 +958,13 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
 
     bot.send_message(group_tele_id, message, disable_notification=True)
 
-    update_stats(group_tele_id, curr_player)
+    update_stats(group_tele_id, curr_player, job_queue)
     delete_game_data(group_tele_id)
 
 
 # Updates group and player stats
-def update_stats(group_tele_id, won_player):
-    money_mode = session.query(GroupSetting.money_mode).filter(GroupSetting.tele_id == group_tele_id).first()
+def update_stats(group_tele_id, won_player, job_queue):
+    money_mode = session.query(GroupSetting.money_mode).filter(GroupSetting.tele_id == group_tele_id).first()[0]
     players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
     group_stat = session.query(GroupStat).filter(GroupStat.tele_id == group_tele_id).first()
     num_cards_left = sum([player.cards.size for player in players])
@@ -970,19 +983,25 @@ def update_stats(group_tele_id, won_player):
             player_stat.num_games += 1
             player_stat.num_cards += 13 - player.cards.size
             player_stat.num_games_won += 1 if player.player_id == won_player else 0
-            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
+            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games * 100
         else:
             player_stat = PlayerStat(tele_id=player.player_tele_id, player_name=player.player_name, num_games=1,
                                      num_cards=13 - player.cards.size, money=init_money, money_earned=0)
             player_stat.num_games_won = 1 if player.player_id == won_player else 0
-            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
+            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games * 100
             session.add(player_stat)
 
         if money_mode and player.player_id != won_player:
             money_lost = get_money_lost(player.cards, card_money, num_cards_left)
             player_stat.money -= money_lost
+            player_stat.money = 0 if player_stat.money < 0 else player_stat.money
             player_stat.money_earned -= money_lost
             money_earned += money_lost
+
+            if player_stat.money == 0:
+                job = job_queue.run_once(recharge_money, recharge_delay, context=player.player_tele_id)
+                queued_jobs[player.player_tele_id] = job
+                recharge_times[player.player_tele_id] = arrow.now()
 
         if player_stat.win_rate > group_stat.best_win_rate:
             group_stat.best_win_rate = player_stat.win_rate
@@ -1038,6 +1057,59 @@ def stop_idle_game(bot, group_tele_id):
     bot.send_message(group_tele_id, message)
 
     delete_game_data(group_tele_id)
+
+
+# Recharges via command
+def recharge(bot, update):
+    player_tele_id = update.message.from_user.id
+    player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
+
+    if player_money == 0:
+        title = "Coffee"
+        description = "Buy me a coffee"
+        payload = "Coffee-Payload"
+        provider_token = payment_token
+        start_parameter = "coffee-payment"
+        currency = "USD"
+        price = 1
+        prices = [LabeledPrice("Coffee", price * 100)]
+
+        bot.sendInvoice(update.message.chat.id, title, description, payload, provider_token, start_parameter, currency,
+                        prices)
+    else:
+        bot.send_message(player_tele_id, "You still have $%d left." % player_money)
+
+
+# Pre-checkout recharge
+def precheckout_recharge(bot, update):
+    query = update.pre_checkout_query
+
+    if query.invoice_payload != 'Coffee-Payload':
+        bot.answer_pre_checkout_query(pre_checkout_query_id=query.id, ok=False, error_message="Something went wrong...")
+    else:
+        bot.answer_pre_checkout_query(pre_checkout_query_id=query.id, ok=True)
+
+
+# Successful recharge
+def successful_recharge(bot, update, job_queue):
+    player_tele_id = update.message.from_user.id
+    if player_tele_id in queued_jobs:
+        queued_jobs[player_tele_id].schedule_removal()
+
+    job_queue.run_once(recharge_money, 0, context=player_tele_id)
+    bot.send_message(player_tele_id, "Thanks for the coffee! Enjoy Big 2!")
+
+
+# Recharges the player's money
+def recharge_money(bot, job):
+    player_tele_id = job.context
+    install_lang(player_tele_id)
+
+    player_stats = session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first()
+    player_stats.money = 1000
+    session.commit()
+
+    bot.send_message(player_tele_id, "Your money has been recharged")
 
 
 # Installs the language
