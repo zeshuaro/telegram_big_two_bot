@@ -71,6 +71,7 @@ def main():
     dp.add_handler(CommandHandler("setlang", set_lang))
     dp.add_handler(CommandHandler("setjointimer", set_join_timer, pass_args=True))
     dp.add_handler(CommandHandler("setpasstimer", set_pass_timer, pass_args=True))
+    dp.add_handler(CommandHandler("setgamemode", set_game_mode, pass_args=True))
     dp.add_handler(CommandHandler("startgame", start_game, pass_job_queue=True))
     dp.add_handler(CommandHandler("join", join, pass_job_queue=True))
     dp.add_handler(CommandHandler("forcestop", force_stop))
@@ -203,17 +204,26 @@ def set_lang(bot, update):
 # Sets join timer
 @run_async
 def set_join_timer(bot, update, args):
-    set_game_timer(bot, update, "join", args[0])
+    if args:
+        set_game_timer(bot, update, "join", args[0])
 
 
 # Sets pass timer
 @run_async
 def set_pass_timer(bot, update, args):
-    set_game_timer(bot, update, "pass", args[0])
+    if args:
+        set_game_timer(bot, update, "pass", args[0])
 
 
-# Sets game timer
-def set_game_timer(bot, update, timer_type, timer):
+# Sets game mode
+@run_async
+def set_game_mode(bot, update, args):
+    if args:
+        set_group_setting(bot, update, game_mode=args[0])
+
+
+# Changes the group settings
+def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
     group_tele_id = update.message.chat.id
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
@@ -229,9 +239,36 @@ def set_game_timer(bot, update, timer_type, timer):
         return
 
     if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
-        bot.send_message(player_tele_id, _("You can only change the timer when a game is not running"))
+        bot.send_message(player_tele_id, _("You can only change the group's settings when a game is not running"))
         return
 
+    if re.match("/set(join|pass)timer", update.message.text):
+        set_game_timer(bot, group_tele_id, timer_type, timer)
+    else:
+        game_mode = game_mode.lower()
+        if game_mode not in ("normal", "money"):
+            bot.send_message(group_tele_id, "Game mode can either be set to 'normal' or 'money'")
+            return
+
+        group_settings = session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
+        if group_settings:
+            if game_mode == "normal":
+                group_settings.money_mode = False
+            else:
+                group_settings.money_mode = True
+        else:
+            if game_mode == "normal":
+                group_settings = GroupSetting(tele_id=group_tele_id, money_mode=False)
+            else:
+                group_settings = GroupSetting(tele_id=group_tele_id, money_mode=True)
+            session.add(group_settings)
+
+        session.commit()
+        bot.send_message(group_tele_id, "Game mode has been set to '%s'" % game_mode)
+
+
+# Sets game timer
+def set_game_timer(bot, group_tele_id, timer_type, timer):
     install_lang(group_tele_id)
 
     if not re.match("\d+", timer) or (timer_type == "join_timer" and int(timer) not in range(10, 61)) or \
@@ -244,7 +281,7 @@ def set_game_timer(bot, update, timer_type, timer):
         return
 
     timer = int(timer)
-    group_settings = session.query(GroupSetting).filter(GroupSetting.group_tele_id == group_tele_id).first()
+    group_settings = session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
 
     if group_settings:
         if timer_type == "join":
@@ -253,9 +290,9 @@ def set_game_timer(bot, update, timer_type, timer):
             group_settings.pass_timer = timer
     else:
         if timer_type == "join":
-            group_settings = GroupSetting(group_tele_id=group_tele_id, join_timer=timer)
+            group_settings = GroupSetting(tele_id=group_tele_id, join_timer=timer)
         else:
-            group_settings = GroupSetting(group_tele_id=group_tele_id, pass_timer=timer)
+            group_settings = GroupSetting(tele_id=group_tele_id, pass_timer=timer)
         session.add(group_settings)
     session.commit()
 
@@ -301,7 +338,7 @@ def start_game(bot, update, job_queue):
 # Creates group settings
 def make_group_setting(group_tele_id):
     if not session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id):
-        group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45)
+        group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45, money_mode=False)
         session.add(group_settings)
         session.commit()
 
@@ -377,7 +414,7 @@ def join(bot, update, job_queue):
             queued_jobs[group_tele_id].schedule_removal()
 
         join_timer, pass_timer = session.query(GroupSetting.join_timer, GroupSetting.pass_timer).\
-            filter(GroupSetting.group_tele_id == group_tele_id).first()
+            filter(GroupSetting.tele_id == group_tele_id).first()
 
         if num_players != 4:
             job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
@@ -542,7 +579,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
         message_id = bot_message.message_id
 
     job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
-    pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.group_tele_id == group_tele_id).first()
+    pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.tele_id == group_tele_id).first()
     job = job_queue.run_once(pass_round, pass_timer, context=job_context)
     queued_jobs[group_tele_id] = job
 

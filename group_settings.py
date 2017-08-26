@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer
+from sqlalchemy import Column, Integer, Boolean
 
 from base import Base
 
@@ -9,3 +9,4 @@ class GroupSetting(Base):
     tele_id = Column(Integer, primary_key=True)
     join_timer = Column(Integer)
     pass_timer = Column(Integer)
+    money_mode = Column(Boolean)
