@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import dotenv
 import gettext
@@ -114,6 +114,7 @@ def start(bot, update):
         make_player_stat(tele_id, update.message.from_user.first_name)
 
 
+# Creates player's stats
 def make_player_stat(player_tele_id, player_name):
     if not session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id):
         player_stat = PlayerStat(tele_id=player_tele_id, player_name=player_name, num_games=0, num_games_won=0,
@@ -235,7 +236,7 @@ def set_game_timer(bot, update, timer_type, timer):
 
     if not re.match("\d+", timer) or (timer_type == "join_timer" and int(timer) not in range(10, 61)) or \
             (timer_type == "pass_timer" and int(timer) not in range(20, 121)):
-        if timer_type == "join_timer":
+        if timer_type == "join":
             message = _("Join timer can only be set between 10s to 60s")
         else:
             message = _("Pass timer can only be set between 20s to 120s")
@@ -293,7 +294,16 @@ def start_game(bot, update, job_queue):
                      text=text,
                      disable_notification=True)
 
+    make_group_setting(group_tele_id)
     join(bot, update, job_queue)
+
+
+# Creates group settings
+def make_group_setting(group_tele_id):
+    if not session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id):
+        group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45)
+        session.add(group_settings)
+        session.commit()
 
 
 # Checks if bot is authorised to send user messages
@@ -366,8 +376,8 @@ def join(bot, update, job_queue):
         if group_tele_id in queued_jobs:
             queued_jobs[group_tele_id].schedule_removal()
 
-        group_settings = session.query(GroupSetting).filter(GroupSetting.group_tele_id == group_tele_id).first()
-        join_timer = group_settings.join_timer if group_settings and group_settings.join_timer else 60
+        join_timer, pass_timer = session.query(GroupSetting.join_timer, GroupSetting.pass_timer).\
+            filter(GroupSetting.group_tele_id == group_tele_id).first()
 
         if num_players != 4:
             job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
@@ -384,15 +394,8 @@ def join(bot, update, job_queue):
         if num_players == 4:
             install_lang(group_tele_id)
             text = _("Enough players, game start. I will PM your deck of cards when it is your turn. ")
-
-            if group_settings and group_settings.pass_timer:
-                text += _("Each player has %ss to pick your cards") % group_settings.pass_timer
-            else:
-                text += _("Each player has 45s to pick your cards")
-
-            bot.send_message(chat_id=group_tele_id,
-                             text=text,
-                             disable_notification=True)
+            text += _("Each player has %ss to pick your cards") % pass_timer
+            bot.send_message(chat_id=group_tele_id, text=text, disable_notification=True)
 
             setup_game(group_tele_id)
             game_message(bot, group_tele_id)
@@ -540,12 +543,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
 
     job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
     pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.group_tele_id == group_tele_id).first()
-
-    if pass_timer:
-        job = job_queue.run_once(pass_round, pass_timer, context=job_context)
-    else:
-        job = job_queue.run_once(pass_round, 45, context=job_context)
-
+    job = job_queue.run_once(pass_round, pass_timer, context=job_context)
     queued_jobs[group_tele_id] = job
 
 
