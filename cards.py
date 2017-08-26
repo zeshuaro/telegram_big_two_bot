@@ -1,6 +1,7 @@
 import pydealer
 
 from collections import Counter
+from pydealer.const import BIG2_RANKS
 
 from card_types import *
 
@@ -17,26 +18,22 @@ def suit_unicode(suit):
 
 
 def suit_rank(suit):
-    if suit == "Diamonds":
-        return 0
-    elif suit == "Clubs":
-        return 1
-    elif suit == "Hearts":
-        return 2
-    else:
-        return 3
+    return BIG2_RANKS["suits"][suit]
+
+
+def value_rank(value):
+    return BIG2_RANKS["values"][value]
 
 
 def get_cards_type(cards):
     cards.sort(ranks=pydealer.BIG2_RANKS)
-    # cards.sort()
     cards_type = -1
     suits = set()
     values = []
 
     for card in cards:
         suits.add(card.suit)
-        values.append(card.value)
+        values.append(value_rank(card.value))
 
     if cards.size == 13:
         # Checks for dragon
@@ -50,13 +47,13 @@ def get_cards_type(cards):
         # Checks for same suit
         if len(suits) == 1:
             # Checks for A 2 3 4 5
-            if cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 14 and \
-                    cards[4].value == 15:
+            if cards[0].value == "3" and cards[1].value == "4" and cards[2].value == "5" and \
+                    cards[3].value == "Ace" and cards[4].value == "2":
                 cards_type = STRAIGHT_FLUSH
 
             # Checks for 2 3 4 5 6
-            elif cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 6 and \
-                    cards[4].value == 15:
+            elif cards[0].value == "3" and cards[1].value == "4" and cards[2].value == "5" and \
+                    cards[3].value == "6" and cards[4].value == "2":
                 cards_type = STRAIGHT_FLUSH
 
             elif sorted(values) == list(range(min(values), max(values) + 1)):
@@ -78,13 +75,13 @@ def get_cards_type(cards):
             # Checks for straight
             else:
                 # Checks for A 2 3 4 5
-                if cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 14 and \
-                        cards[4].value == 15:
+                if cards[0].value == "3" and cards[1].value == "4" and cards[2].value == "5" and \
+                        cards[3].value == "Ace" and cards[4].value == "2":
                     cards_type = STRAIGHT
 
                 # Checks for 2 3 4 5 6
-                elif cards[0].value == 3 and cards[1].value == 4 and cards[2].value == 5 and cards[3].value == 6 and \
-                        cards[4].value == 15:
+                elif cards[0].value == "3" and cards[1].value == "4" and cards[2].value == "5" and \
+                        cards[3].value == "6" and cards[4].value == "2":
                     cards_type = STRAIGHT
 
                 elif sorted(values) == list(range(min(values), max(values) + 1)):
@@ -140,7 +137,7 @@ def are_cards_bigger(prev_cards, curr_cards):
 
                 for card in prev_cards:
                     if card.value in nums:
-                        prev_num = card.value
+                        prev_num = value_rank(card.value)
                         break
 
                     nums.append(card.value)
@@ -148,7 +145,7 @@ def are_cards_bigger(prev_cards, curr_cards):
                 del nums[:]
                 for card in curr_cards:
                     if card.value in nums:
-                        curr_num = card.value
+                        curr_num = value_rank(card.value)
                         break
 
                     nums.append(card.value)
@@ -164,10 +161,10 @@ def are_cards_bigger(prev_cards, curr_cards):
                 curr_num = 0
 
                 for card in prev_cards:
-                    prev_nums.append(card.value)
+                    prev_nums.append(value_rank(card.value))
 
                 for card in curr_cards:
-                    curr_nums.append(card.value)
+                    curr_nums.append(value_rank(card.value))
 
                 prev_nums = Counter(prev_nums)
                 curr_nums = Counter(curr_nums)
@@ -191,7 +188,7 @@ def are_cards_bigger(prev_cards, curr_cards):
                     is_bigger = True
                 else:
                     for i in range(4, -1, -1):
-                        if curr_cards[i].value > prev_cards[i].value:
+                        if value_rank(curr_cards[i].value) > value_rank(prev_cards[i].value):
                             is_bigger = True
                             break
 
@@ -200,7 +197,7 @@ def are_cards_bigger(prev_cards, curr_cards):
                 all_same = True
 
                 for i in range(4, -1, -1):
-                    if curr_cards[i].value > prev_cards[i].value:
+                    if value_rank(curr_cards[i].value) > value_rank(prev_cards[i].value):
                         is_bigger = True
                         break
                     if curr_cards[i].value != prev_cards[i].value:
@@ -212,12 +209,12 @@ def are_cards_bigger(prev_cards, curr_cards):
 
         # Checks for bigger three of a kind
         elif prev_cards_type == 3 and curr_cards_type == 3:
-            if curr_cards[0].value > prev_cards[0].value:
+            if value_rank(curr_cards[0].value) > value_rank(prev_cards[0].value):
                 is_bigger = True
 
         # Checks for bigger pair
         elif prev_cards_type == 2 and curr_cards_type == 2:
-            if curr_cards[0].value > prev_cards[0].value:
+            if value_rank(curr_cards[0].value) > value_rank(prev_cards[0].value):
                 is_bigger = True
             else:
                 if suit_rank(prev_cards[0].suit) > suit_rank(prev_cards[1].suit):
@@ -235,9 +232,9 @@ def are_cards_bigger(prev_cards, curr_cards):
 
         # Checks for bigger single
         elif prev_cards_type == 1 and curr_cards_type == 1:
-            if curr_cards[0].value > prev_cards[0].value:
+            if value_rank(curr_cards[0].value) > value_rank(prev_cards[0].value):
                 is_bigger = True
-            elif curr_cards[0].value == prev_cards[0].value:
+            elif value_rank(curr_cards[0].value) == value_rank(prev_cards[0].value):
                 if suit_rank(curr_cards[0].suit) > suit_rank(prev_cards[0].suit):
                     is_bigger = True
 
