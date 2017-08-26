@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, Text, Float
+from sqlalchemy.orm import relationship
 
 from base import Base
 
@@ -20,6 +21,7 @@ class PlayerStat(Base):
     tele_id = Column(Integer, primary_key=True)
     player_name = Column(Text)
     num_games = Column(Integer)
+    num_games_won = Column(Integer)
     num_cards = Column(Integer)
     win_rate = Column(Float)
     score = Column(Integer)

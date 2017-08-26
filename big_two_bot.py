@@ -430,6 +430,7 @@ def setup_game(group_tele_id):
         player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
         player.player_id = i
         player.cards = player_cards
+        session.commit()
 
     game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
     game.curr_player = game.biggest_player = curr_player
@@ -467,7 +468,8 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
     text = ""
 
     game, player = session.query(Game, Player). \
-        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
+        filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
+               Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, cards = \
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards
     player_tele_id = player.player_tele_id
@@ -664,7 +666,7 @@ def show_player_stat(bot, tele_id, text=""):
         text += "You played %d games\n" % num_games
         text += "You used %d cards\n" % num_cards
         text += "Your win rate is %f%%\n" % win_rate
-        text += "Your score is %d" % score
+        # text += "Your score is %d" % score
     else:
         text += "I couldn't find any stats about you"
 
@@ -684,9 +686,9 @@ def show_group_stat(bot, tele_id):
             group_stat.best_score_player, group_stat.best_score
 
         text = "Group's stats:\n"
-        text += "Total number of games played\n" % num_games
+        text += "Total number of games played: %d\n" % num_games
         text += "Highest win rate player: %s (%f%%)\n" % (best_win_rate_player, best_win_rate)
-        text += "Highest score player: %s (%f%%)\n" % (best_score_player, best_score)
+        # text += "Highest score player: %s (%f%%)\n" % (best_score_player, best_score)
     else:
         text = "I couldn't find any stats about the group"
 
@@ -724,7 +726,7 @@ def in_line_button(bot, update, job_queue):
 
     queued_jobs[group_tele_id].schedule_removal()
 
-    if re.match("[2-9JQKA][DCHS]", data):
+    if re.match("([2-9JQKA]|10)[DCHS]", data):
         add_use_card(bot, group_tele_id, message_id, data, job_queue)
     elif data == "useCards":
         use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue)
@@ -762,7 +764,8 @@ def change_lang(bot, tele_id, message_id, data):
 # Adds a selected card
 def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     game, player = session.query(Game, Player). \
-        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
+        filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
+               Player.player_id == Game.curr_player).first()
 
     curr_cards = pydealer.Stack(cards=game.curr_cards)
     player_cards = pydealer.Stack(cards=player.cards)
@@ -780,7 +783,8 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     bigger = True
 
     game, player = session.query(Game, Player). \
-        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
+        filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
+               Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, curr_cards, prev_cards = \
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards, game.prev_cards
     player_name, num_cards = player.player_name, player.num_cards
@@ -832,7 +836,8 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
 # Retruns curr_cards to the player's deck
 def return_cards_to_deck(group_tele_id):
     game, player = session.query(Game, Player). \
-        filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
+        filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
+               Player.player_id == Game.curr_player).first()
 
     curr_cards = game.curr_cards
     player_cards = pydealer.Stack(cards=player.cards)
@@ -884,29 +889,66 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
 
     bot.send_message(group_tele_id, message, disable_notification=True)
 
+    update_stats(group_tele_id, curr_player)
     delete_game_data(group_tele_id)
+
+
+def update_stats(group_tele_id, won_player):
+    players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
+    group_stat = session.query(GroupStat).filter(GroupStat.tele_id == group_tele_id).first()
+
+    if group_stat:
+        group_stat.num_games += 1
+    else:
+        group_stat = GroupStat(tele_id=group_tele_id, num_games=1, best_win_rate=0, best_score=0)
+        session.add(group_stat)
+
+    for player in players:
+        player_stat = session.query(PlayerStat).filter(PlayerStat.tele_id == player.player_tele_id).first()
+
+        if player_stat:
+            player_stat.num_games += 1
+            player_stat.num_cards += 13 - player.cards.size
+            player_stat.num_games_won += 1 if player.player_id == won_player else 0
+            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
+        else:
+            player_stat = PlayerStat(tele_id=player.player_tele_id, player_name=player.player_name, num_games=1,
+                                     num_cards=13 - player.cards.size)
+            player_stat.num_games_won = 1 if player.player_id == won_player else 0
+            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
+            session.add(player_stat)
+
+        if player_stat.win_rate > group_stat.best_win_rate:
+            group_stat.best_win_rate = player_stat.win_rate
+            group_stat.best_win_rate_player = player.player_name
+
+        # if player_stat.score > group_stat.best_score:
+        #     group_stat.best_score = player_stat.score
+        #     group_stat.best_score_player = player.player_name
+
+    session.commit()
 
 
 # Passes player's turn
 def pass_round(bot, job):
     group_tele_id, player_tele_id, message_id = map(int, job.context.split(","))
     install_lang(player_tele_id)
-
     game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
-    game.game_round += 1
-    game.curr_player = (game.curr_player + 1) % 4
-    game.count_pass += 1
 
     try:
         bot.editMessageText(text=_("You Passed"), chat_id=player_tele_id, message_id=message_id)
     except:
         return
 
-    if game.count_pass > 4:
+    if game.count_pass + 1 > 4:
         stop_idle_game(bot, group_tele_id)
         return
 
     return_cards_to_deck(group_tele_id)
+
+    game.game_round += 1
+    game.curr_player = (game.curr_player + 1) % 4
+    game.count_pass += 1
 
     if game.game_round > 1 and game.curr_player == game.biggest_player:
         game.prev_cards = pydealer.Stack()
