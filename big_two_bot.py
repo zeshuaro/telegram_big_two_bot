@@ -85,7 +85,7 @@ def main():
     dp.add_handler(CommandHandler("showdeck", show_deck))
     dp.add_handler(CommandHandler("stats", show_stat))
     dp.add_handler(CallbackQueryHandler(in_line_button, pass_job_queue=True))
-    
+
     dp.add_handler(CommandHandler("coffee", recharge))
     dp.add_handler(PreCheckoutQueryHandler(precheckout_recharge))
     dp.add_handler(MessageHandler(Filters.successful_payment, successful_recharge, pass_job_queue=True))
@@ -841,11 +841,14 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
 
     curr_cards = pydealer.Stack(cards=game.curr_cards)
     player_cards = pydealer.Stack(cards=player.cards)
-    curr_cards.add(player_cards.get(card_abbrev)[0])
-    game.curr_cards, player.cards = curr_cards, player_cards
-    session.commit()
+    cards = player_cards.get(card_abbrev)
 
-    player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
+    if cards:
+        curr_cards.add(cards[0])
+        game.curr_cards, player.cards = curr_cards, player_cards
+        session.commit()
+
+        player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
 
 
 # Uses the selected cards
