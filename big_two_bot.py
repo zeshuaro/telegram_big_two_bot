@@ -519,12 +519,16 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if is_edit:
-        bot_message = bot.editMessageText(text=text, chat_id=player_tele_id, message_id=message_id,
-                                          reply_markup=reply_markup)
+        try:
+            bot.editMessageText(text=text, chat_id=player_tele_id, message_id=message_id,
+                                reply_markup=reply_markup)
+        except:
+            pass
     else:
         bot_message = bot.send_message(chat_id=player_tele_id, text=text, reply_markup=reply_markup)
+        message_id = bot_message.message_id
 
-    job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, bot_message.message_id)
+    job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
     pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.group_tele_id == group_tele_id).first()
 
     if pass_timer:
@@ -922,9 +926,9 @@ def update_stats(group_tele_id, won_player):
             group_stat.best_win_rate = player_stat.win_rate
             group_stat.best_win_rate_player = player.player_name
 
-        # if player_stat.score > group_stat.best_score:
-        #     group_stat.best_score = player_stat.score
-        #     group_stat.best_score_player = player.player_name
+            # if player_stat.score > group_stat.best_score:
+            #     group_stat.best_score = player_stat.score
+            #     group_stat.best_score_player = player.player_name
 
     session.commit()
 
