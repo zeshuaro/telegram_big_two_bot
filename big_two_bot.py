@@ -401,6 +401,16 @@ def join(bot, update, job_queue):
 
     # Checks for valid number of players
     if num_players < 4:
+        join_timer, pass_timer, money_mode = session.\
+            query(GroupSetting.join_timer, GroupSetting.pass_timer, GroupSetting.money_mode).\
+            filter(GroupSetting.tele_id == group_tele_id).first()
+
+        if money_mode:
+            player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()
+            if player_money <= 0:
+                bot.send_message(player_tele_id, "You don't have any money left to join the game.")
+                return
+
         player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
                         player_id=num_players, cards=pydealer.Stack(), num_cards=13)
         session.add(player)
@@ -413,17 +423,12 @@ def join(bot, update, job_queue):
         if group_tele_id in queued_jobs:
             queued_jobs[group_tele_id].schedule_removal()
 
-        join_timer, pass_timer = session.query(GroupSetting.join_timer, GroupSetting.pass_timer).\
-            filter(GroupSetting.tele_id == group_tele_id).first()
-
         if num_players != 4:
             job = job_queue.run_once(stop_empty_game, join_timer, context=group_tele_id)
             queued_jobs[group_tele_id] = job
             text += _("%ss left to join") % join_timer
 
-        bot.send_message(chat_id=group_tele_id,
-                         text=text,
-                         disable_notification=True)
+        bot.send_message(chat_id=group_tele_id, text=text, disable_notification=True)
 
         install_lang(player_tele_id)
         bot.send_message(player_tele_id, _("You have joined the game in the group [%s]") % group_name)
@@ -946,6 +951,7 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
 
 # Updates group and player stats
 def update_stats(group_tele_id, won_player):
+    money_mode = session.query(GroupSetting.money_mode).filter(GroupSetting.tele_id == group_tele_id).first()
     players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
     group_stat = session.query(GroupStat).filter(GroupStat.tele_id == group_tele_id).first()
     num_cards_left = sum([player.cards.size for player in players])
@@ -972,7 +978,7 @@ def update_stats(group_tele_id, won_player):
             player_stat.win_rate = player_stat.num_games_won / player_stat.num_games
             session.add(player_stat)
 
-        if player.player_id != won_player:
+        if money_mode and player.player_id != won_player:
             money_lost = get_money_lost(player.cards, card_money, num_cards_left)
             player_stat.money -= money_lost
             player_stat.money_earned -= money_lost
@@ -986,11 +992,12 @@ def update_stats(group_tele_id, won_player):
             group_stat.most_money_earned = player_stat.money_earned
             group_stat.most_money_earned_player = player.player_name
 
-    player_stat = session.query(PlayerStat).\
-        filter(PlayerStat.tele_id == Player.player_tele_id, Player.group_tele_id == group_tele_id,
-               Player.player_id == won_player).first()
-    player_stat.money += money_earned
-    player_stat.money_earned += money_earned
+    if money_mode:
+        player_stat = session.query(PlayerStat).\
+            filter(PlayerStat.tele_id == Player.player_tele_id, Player.group_tele_id == group_tele_id,
+                   Player.player_id == won_player).first()
+        player_stat.money += money_earned
+        player_stat.money_earned += money_earned
 
     session.commit()
 
