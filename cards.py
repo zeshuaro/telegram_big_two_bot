@@ -1,5 +1,3 @@
-import pydealer
-
 from collections import Counter
 from pydealer.const import BIG2_RANKS
 
@@ -26,7 +24,7 @@ def value_rank(value):
 
 
 def get_cards_type(cards):
-    cards.sort(ranks=pydealer.BIG2_RANKS)
+    cards.sort(ranks=BIG2_RANKS)
     cards_type = -1
     suits = set()
     values = []
@@ -104,8 +102,8 @@ def get_cards_type(cards):
 # Returns if currCards is greater than prevCards
 # Also checks if currCards have the same num of cards with prevCards
 def are_cards_bigger(prev_cards, curr_cards):
-    prev_cards.sort(ranks=pydealer.BIG2_RANKS)
-    curr_cards.sort(ranks=pydealer.BIG2_RANKS)
+    prev_cards.sort(ranks=BIG2_RANKS)
+    curr_cards.sort(ranks=BIG2_RANKS)
     is_bigger = False
 
     if len(prev_cards) == 0:

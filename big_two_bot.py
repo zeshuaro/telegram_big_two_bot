@@ -1068,6 +1068,7 @@ def stop_idle_game(bot, group_tele_id):
 
 
 # Recharges via command
+@run_async
 def recharge(bot, update):
     player_tele_id = update.message.from_user.id
     player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
