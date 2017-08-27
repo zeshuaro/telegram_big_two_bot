@@ -4,8 +4,8 @@ import unittest
 from pydealer import Stack, Card
 from pydealer.const import SUITS, VALUES
 
-from cards import get_cards_type, are_cards_bigger
-from card_types import *
+from card import get_cards_type, are_cards_bigger
+from card_type import *
 
 num_tests = 100
 

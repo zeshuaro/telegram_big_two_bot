@@ -22,13 +22,13 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, Conversa
 from telegram.ext.dispatcher import run_async
 
 import base
-from languages import Language
-from group_settings import GroupSetting
-from cards import suit_unicode, get_cards_type, are_cards_bigger
+from language import Language
+from group_setting import GroupSetting
+from card import suit_unicode, get_cards_type, are_cards_bigger
 from money import get_money_lost
 from game import Game
 from player import Player
-from stats import GroupStat, PlayerStat
+from stat import GroupStat, PlayerStat
 
 # Enable logging
 logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %I:%M:%S %p',

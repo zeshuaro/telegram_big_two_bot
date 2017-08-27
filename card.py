@@ -1,7 +1,7 @@
 from collections import Counter
 from pydealer.const import BIG2_RANKS
 
-from card_types import *
+from card_type import *
 
 
 def suit_unicode(suit):

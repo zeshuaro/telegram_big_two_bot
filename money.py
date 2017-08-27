@@ -1,8 +1,8 @@
 from itertools import combinations
 from pydealer import Stack
 
-from cards import get_cards_type
-from card_types import STRAIGHT_FLUSH, FOUR_OF_A_KIND
+from card import get_cards_type
+from card_type import STRAIGHT_FLUSH, FOUR_OF_A_KIND
 
 
 def max_money_lost(money):
