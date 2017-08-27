@@ -388,6 +388,7 @@ def join(bot, update, job_queue):
     group_name = update.message.chat.title
     group_tele_id = update.message.chat.id
 
+    make_player_stat(player_tele_id, player_name)
     install_lang(player_tele_id)
 
     if update.message.chat.type not in (Chat.GROUP, Chat.SUPERGROUP):
