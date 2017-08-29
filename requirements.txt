@@ -1,4 +1,7 @@
+arrow==0.10.0
 langdetect==1.0.7
 python-telegram-bot==6.0.3
 psycopg2==2.7.1
+pydealer==1.4.0
 python-env==1.0.0
+SQLAlchemy==1.1.13
