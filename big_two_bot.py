@@ -28,7 +28,7 @@ from card import suit_unicode, get_cards_type, are_cards_bigger
 from money import get_money_lost
 from game import Game
 from player import Player
-from stat import GroupStat, PlayerStat
+from game_stat import GroupStat, PlayerStat
 
 # Enable logging
 logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %I:%M:%S %p',
@@ -49,8 +49,8 @@ is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
 
 engine = create_engine(os.environ.get("DATABASE_URL"))
-Player.__table__.drop(engine)
-Game.__table__.drop(engine)
+Player.__table__.drop(engine) if engine.dialect.has_table(engine, Player) else 0
+Game.__table__.drop(engine) if engine.dialect.has_table(engine, Game) else 0
 base.Base.metadata.create_all(engine, checkfirst=True)
 Session = sessionmaker(bind=engine)
 session = Session()
