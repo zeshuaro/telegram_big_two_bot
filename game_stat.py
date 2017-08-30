@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Float
+from sqlalchemy import Column, Integer, Text, Float, BigInteger
 
 from base import Base
 
@@ -6,7 +6,7 @@ from base import Base
 class GroupStat(Base):
     __tablename__ = "group_stats"
 
-    tele_id = Column(Integer, primary_key=True)
+    tele_id = Column(BigInteger, primary_key=True)
     num_games = Column(Integer)
     best_win_rate_player = Column(Text)
     best_win_rate = Column(Float)
@@ -17,7 +17,7 @@ class GroupStat(Base):
 class PlayerStat(Base):
     __tablename__ = "player_stats"
 
-    tele_id = Column(Integer, primary_key=True)
+    tele_id = Column(BigInteger, primary_key=True)
     player_name = Column(Text)
     num_games = Column(Integer)
     num_games_won = Column(Integer)
