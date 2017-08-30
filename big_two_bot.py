@@ -129,10 +129,14 @@ def start(bot, update):
 # Creates player's stats
 def make_player_stat(player_tele_id, player_name):
     if not session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first():
-        player_stat = PlayerStat(tele_id=player_tele_id, player_name=player_name, num_games=0, num_games_won=0,
-                                 num_cards=0, win_rate=0, money=init_money, money_earned=0)
-        session.add(player_stat)
-        session.commit()
+        try:
+            player_stat = PlayerStat(tele_id=player_tele_id, player_name=player_name, num_games=0, num_games_won=0,
+                                     num_cards=0, win_rate=0, money=init_money, money_earned=0)
+            session.add(player_stat)
+            session.commit()
+        except:
+            session.rollback()
+            return
 
 
 # Sends help message
@@ -268,11 +272,15 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
             else:
                 group_settings.money_mode = True
         else:
-            if game_mode == "normal":
-                group_settings = GroupSetting(tele_id=group_tele_id, money_mode=False)
-            else:
-                group_settings = GroupSetting(tele_id=group_tele_id, money_mode=True)
-            session.add(group_settings)
+            try:
+                if game_mode == "normal":
+                    group_settings = GroupSetting(tele_id=group_tele_id, money_mode=False)
+                else:
+                    group_settings = GroupSetting(tele_id=group_tele_id, money_mode=True)
+                session.add(group_settings)
+            except:
+                session.rollback()
+                return
 
         session.commit()
         bot.send_message(group_tele_id, "Game mode has been set to '%s'" % game_mode)
@@ -300,11 +308,15 @@ def set_game_timer(bot, group_tele_id, timer_type, timer):
         else:
             group_settings.pass_timer = timer
     else:
-        if timer_type == "join":
-            group_settings = GroupSetting(tele_id=group_tele_id, join_timer=timer)
-        else:
-            group_settings = GroupSetting(tele_id=group_tele_id, pass_timer=timer)
-        session.add(group_settings)
+        try:
+            if timer_type == "join":
+                group_settings = GroupSetting(tele_id=group_tele_id, join_timer=timer)
+            else:
+                group_settings = GroupSetting(tele_id=group_tele_id, pass_timer=timer)
+            session.add(group_settings)
+        except:
+            session.rollback()
+            return
     session.commit()
 
     if timer_type == "join":
@@ -330,10 +342,14 @@ def start_game(bot, update, job_queue):
         bot.send_message(update.message.from_user.id, _("A game has already been started"))
         return
 
-    game = Game(group_tele_id=group_tele_id, game_round=1, curr_player=-1, biggest_player=-1, count_pass=0,
-                curr_cards=pydealer.Stack(), prev_cards=pydealer.Stack())
-    session.add(game)
-    session.commit()
+    try:
+        game = Game(group_tele_id=group_tele_id, game_round=1, curr_player=-1, biggest_player=-1, count_pass=0,
+                    curr_cards=pydealer.Stack(), prev_cards=pydealer.Stack())
+        session.add(game)
+        session.commit()
+    except:
+        session.rollback()
+        return
 
     install_lang(group_tele_id)
     text = _("[%s] has started Big Two. Type /join to join the game\n\n" % player_name)
@@ -349,9 +365,13 @@ def start_game(bot, update, job_queue):
 # Creates group settings
 def make_group_setting(group_tele_id):
     if not session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first():
-        group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45, money_mode=False)
-        session.add(group_settings)
-        session.commit()
+        try:
+            group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45, money_mode=False)
+            session.add(group_settings)
+            session.commit()
+        except:
+            session.rollback()
+            return
 
 
 # Checks if bot is authorised to send user messages
@@ -428,11 +448,15 @@ def join(bot, update, job_queue):
                 bot.send_message(player_tele_id, text)
                 return
 
-        player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
-                        player_id=num_players, cards=pydealer.Stack(), num_cards=13)
-        session.add(player)
-        session.commit()
-        num_players += 1
+        try:
+            player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
+                            player_id=num_players, cards=pydealer.Stack(), num_cards=13)
+            session.add(player)
+            session.commit()
+            num_players += 1
+        except:
+            session.rollback()
+            return
 
         install_lang(group_tele_id)
         text = (_("[%s] has joined.\nThere are now %d/4 Players\n") % (player_name, num_players))
@@ -826,8 +850,12 @@ def change_lang(bot, tele_id, message_id, data):
     if language:
         language.language = new_language
     else:
-        language = Language(tele_id=tele_id, language=language)
-        session.add(language)
+        try:
+            language = Language(tele_id=tele_id, language=language)
+            session.add(language)
+        except:
+            session.rollback()
+            return
 
     session.commit()
     install_lang(tele_id)
@@ -981,8 +1009,12 @@ def update_stats(group_tele_id, won_player, job_queue):
     if group_stat:
         group_stat.num_games += 1
     else:
-        group_stat = GroupStat(tele_id=group_tele_id, num_games=1, best_win_rate=0, most_money_earned=0)
-        session.add(group_stat)
+        try:
+            group_stat = GroupStat(tele_id=group_tele_id, num_games=1, best_win_rate=0, most_money_earned=0)
+            session.add(group_stat)
+        except:
+            session.rollback()
+            return
 
     for player in players:
         player_stat = session.query(PlayerStat).filter(PlayerStat.tele_id == player.player_tele_id).first()
@@ -993,11 +1025,15 @@ def update_stats(group_tele_id, won_player, job_queue):
             player_stat.num_games_won += 1 if player.player_id == won_player else 0
             player_stat.win_rate = player_stat.num_games_won / player_stat.num_games * 100
         else:
-            player_stat = PlayerStat(tele_id=player.player_tele_id, player_name=player.player_name, num_games=1,
-                                     num_cards=13 - player.cards.size, money=init_money, money_earned=0)
-            player_stat.num_games_won = 1 if player.player_id == won_player else 0
-            player_stat.win_rate = player_stat.num_games_won / player_stat.num_games * 100
-            session.add(player_stat)
+            try:
+                player_stat = PlayerStat(tele_id=player.player_tele_id, player_name=player.player_name, num_games=1,
+                                         num_cards=13 - player.cards.size, money=init_money, money_earned=0)
+                player_stat.num_games_won = 1 if player.player_id == won_player else 0
+                player_stat.win_rate = player_stat.num_games_won / player_stat.num_games * 100
+                session.add(player_stat)
+            except:
+                session.rollback()
+                return
 
         if money_mode and player.player_id != won_player:
             money_lost = get_money_lost(player.cards, card_money, num_cards_left)
@@ -1127,9 +1163,13 @@ def install_lang(tele_id):
     if language:
         es = gettext.translation("big_two_text", localedir="locale", languages=[language.language])
     else:
-        language = Language(tele_id=tele_id, language="en")
-        session.add(language)
-        session.commit()
+        try:
+            language = Language(tele_id=tele_id, language="en")
+            session.add(language)
+            session.commit()
+        except:
+            session.rollback()
+
         es = gettext.translation("big_two_text", localedir="locale", languages=["en"])
     es.install()
 
