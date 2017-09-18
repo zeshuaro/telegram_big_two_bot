@@ -48,7 +48,7 @@ dev_email_pw = os.environ.get("DEV_EMAIL_PW")
 is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
 
-engine = create_engine(os.environ.get("DATABASE_URL"), pool_size=20, max_overflow=0, timeout=1)
+engine = create_engine(os.environ.get("DATABASE_URL"), pool_size=20, max_overflow=0, pool_timeout=1)
 Player.__table__.drop(engine) if engine.dialect.has_table(engine, "players") else 0
 Game.__table__.drop(engine) if engine.dialect.has_table(engine, "games") else 0
 base.Base.metadata.create_all(engine, checkfirst=True)
