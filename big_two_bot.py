@@ -13,7 +13,7 @@ import re
 import smtplib
 
 from sqlalchemy import create_engine, sql
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Chat, ChatMember, LabeledPrice
 from telegram.error import TelegramError, Unauthorized
@@ -49,11 +49,13 @@ is_email_feedback = os.environ.get("IS_EMAIL_FEEDBACK")
 smtp_host = os.environ.get("SMTP_HOST")
 
 engine = create_engine(os.environ.get("DATABASE_URL"))
-Player.__table__.drop(engine) if engine.dialect.has_table(engine, Player) else 0
-Game.__table__.drop(engine) if engine.dialect.has_table(engine, Game) else 0
+Player.__table__.drop(engine) if engine.dialect.has_table(engine, "players") else 0
+Game.__table__.drop(engine) if engine.dialect.has_table(engine, "games") else 0
 base.Base.metadata.create_all(engine, checkfirst=True)
-Session = sessionmaker(bind=engine)
-session = Session()
+session_factory = sessionmaker(bind=engine)
+# Session = scoped_session(session_factory)
+# Session = sessionmaker(bind=engine)
+# session = Session()
 
 init_money = 1000
 card_money = 5
@@ -128,15 +130,19 @@ def start(bot, update):
 
 # Creates player's stats
 def make_player_stat(player_tele_id, player_name):
-    if not session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first():
+    session = scoped_session(session_factory)
+    s = session()
+
+    if not s.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first():
         try:
             player_stat = PlayerStat(tele_id=player_tele_id, player_name=player_name, num_games=0, num_games_won=0,
                                      num_cards=0, win_rate=0, money=init_money, money_earned=0)
-            session.add(player_stat)
-            session.commit()
+            s.add(player_stat)
+            s.commit()
         except:
-            session.rollback()
-            return
+            s.rollback()
+
+    session.remove()
 
 
 # Sends help message
@@ -152,7 +158,10 @@ def help_msg(bot, update):
                 "running.\n\nYou can only force to stop a game if you are a group admin.\n\nUse /command to get a "
                 "list of commands to see what I can do.")
 
-    bot.send_message(player_tele_id, message, reply_markup=reply_markup)
+    try:
+        bot.send_message(player_tele_id, message, reply_markup=reply_markup)
+    except:
+        return
 
 
 # Sends command message
@@ -171,7 +180,10 @@ def command(bot, update):
                 "/help - How to use the bot\n"
                 "/donate - Support my developer!")
 
-    bot.send_message(player_tele_id, message)
+    try:
+        bot.send_message(player_tele_id, message)
+    except:
+        return
 
 
 # Sends donate message
@@ -181,7 +193,10 @@ def donate(bot, update):
     install_lang(player_tele_id)
     message = _("Want to help keep me online? Please donate to %s through PayPal.\n\nDonations "
                 "help me to stay on my server and keep running." % dev_email)
-    bot.send_message(player_tele_id, message)
+    try:
+        bot.send_message(player_tele_id, message)
+    except:
+        return
 
 
 # Sends set language message
@@ -253,11 +268,14 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
         bot.send_message(player_tele_id, _("You are not a group admin"))
         return
 
-    if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+    session = scoped_session(session_factory)
+    s = session()
+    if s.query(Game).filter(Game.group_tele_id == group_tele_id).first():
         bot.send_message(player_tele_id, _("You can only change the group's settings when a game is not running"))
         return
 
     if re.match("/set(join|pass)timer", update.message.text):
+        session.remove()
         set_game_timer(bot, group_tele_id, timer_type, timer)
     else:
         game_mode = game_mode.lower()
@@ -265,7 +283,7 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
             bot.send_message(group_tele_id, "Game mode can either be set to 'normal' or 'money'")
             return
 
-        group_settings = session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
+        group_settings = s.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
         if group_settings:
             if game_mode == "normal":
                 group_settings.money_mode = False
@@ -277,12 +295,14 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
                     group_settings = GroupSetting(tele_id=group_tele_id, money_mode=False)
                 else:
                     group_settings = GroupSetting(tele_id=group_tele_id, money_mode=True)
-                session.add(group_settings)
+                s.add(group_settings)
+                s.commit()
             except:
-                session.rollback()
+                s.rollback()
+                session.remove()
                 return
 
-        session.commit()
+        session.remove()
         bot.send_message(group_tele_id, "Game mode has been set to '%s'" % game_mode)
 
 
@@ -300,7 +320,9 @@ def set_game_timer(bot, group_tele_id, timer_type, timer):
         return
 
     timer = int(timer)
-    group_settings = session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    group_settings = s.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
 
     if group_settings:
         if timer_type == "join":
@@ -313,11 +335,14 @@ def set_game_timer(bot, group_tele_id, timer_type, timer):
                 group_settings = GroupSetting(tele_id=group_tele_id, join_timer=timer)
             else:
                 group_settings = GroupSetting(tele_id=group_tele_id, pass_timer=timer)
-            session.add(group_settings)
+            s.add(group_settings)
+            s.commit()
         except:
-            session.rollback()
+            s.rollback()
+            session.remove()
             return
-    session.commit()
+
+    session.remove()
 
     if timer_type == "join":
         bot.send_message(group_tele_id, _("Join timer has been set to %ds") % timer)
@@ -338,17 +363,22 @@ def start_game(bot, update, job_queue):
     if not can_msg_player(bot, update):
         return
 
-    if session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+    session = scoped_session(session_factory)
+    s = session()
+    if s.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+        session.remove()
         bot.send_message(update.message.from_user.id, _("A game has already been started"))
         return
 
     try:
         game = Game(group_tele_id=group_tele_id, game_round=1, curr_player=-1, biggest_player=-1, count_pass=0,
                     curr_cards=pydealer.Stack(), prev_cards=pydealer.Stack())
-        session.add(game)
-        session.commit()
+        s.add(game)
+        s.commit()
+        session.remove()
     except:
-        session.rollback()
+        s.rollback()
+        session.remove()
         return
 
     install_lang(group_tele_id)
@@ -364,14 +394,18 @@ def start_game(bot, update, job_queue):
 
 # Creates group settings
 def make_group_setting(group_tele_id):
-    if not session.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first():
+    session = scoped_session(session_factory)
+    s = session()
+
+    if not s.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first():
         try:
             group_settings = GroupSetting(tele_id=group_tele_id, join_timer=60, pass_timer=45, money_mode=False)
-            session.add(group_settings)
-            session.commit()
+            s.add(group_settings)
+            s.commit()
         except:
-            session.rollback()
-            return
+            s.rollback()
+
+    session.remove()
 
 
 # Checks if bot is authorised to send user messages
@@ -419,26 +453,28 @@ def join(bot, update, job_queue):
         return
 
     # Checks if there exists a game
-    if not session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+    session = scoped_session(session_factory)
+    s = session()
+    if not s.query(Game).filter(Game.group_tele_id == group_tele_id).first():
         text = _("A game has not been started yet. Type /startgame in a group to start a game.")
         bot.send_message(player_tele_id, text)
         return
 
     # Checks if player is in game
-    if session.query(Player).filter(Player.player_tele_id == player_tele_id).first():
+    if s.query(Player).filter(Player.player_tele_id == player_tele_id).first():
         bot.send_message(player_tele_id, _("You have already joined a game"))
         return
 
-    num_players = session.query(Player).filter(Player.group_tele_id == group_tele_id).count()
+    num_players = s.query(Player).filter(Player.group_tele_id == group_tele_id).count()
 
     # Checks for valid number of players
     if num_players < 4:
-        join_timer, pass_timer, money_mode = session.\
+        join_timer, pass_timer, money_mode = s.\
             query(GroupSetting.join_timer, GroupSetting.pass_timer, GroupSetting.money_mode).\
             filter(GroupSetting.tele_id == group_tele_id).first()
 
         if money_mode:
-            player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
+            player_money = s.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
             if player_money == 0:
                 recharge_time = recharge_times[player_tele_id].shift(seconds=recharge_delay)
                 text = "You don't have any money left to join the game.\n\n"
@@ -451,11 +487,13 @@ def join(bot, update, job_queue):
         try:
             player = Player(group_tele_id=group_tele_id, player_tele_id=player_tele_id, player_name=player_name,
                             player_id=num_players, cards=pydealer.Stack(), num_cards=13)
-            session.add(player)
-            session.commit()
+            s.add(player)
+            s.commit()
+            session.remove()
             num_players += 1
         except:
-            session.rollback()
+            s.rollback()
+            session.remove()
             return
 
         install_lang(group_tele_id)
@@ -499,14 +537,19 @@ def delete_game_data(group_tele_id):
     if group_tele_id in queued_jobs:
         queued_jobs[group_tele_id].schedule_removal()
 
-    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
-    session.delete(game)
-    session.commit()
+    session = scoped_session(session_factory)
+    s = session()
+    game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    s.delete(game)
+    s.commit()
+    session.remove()
 
 
 # Sets up a game
 def setup_game(group_tele_id):
-    player_tele_ids = session.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
+    session = scoped_session(session_factory)
+    s = session()
+    player_tele_ids = s.query(Player.player_tele_id).filter(Player.group_tele_id == group_tele_id).all()
     random.shuffle(player_tele_ids)
 
     # Creates a deck of cards in random order
@@ -524,33 +567,37 @@ def setup_game(group_tele_id):
         if player_cards.find("3D"):
             curr_player = i
 
-        player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
+        player = s.query(Player).filter(Player.player_tele_id == player_tele_id).first()
         player.player_id = i
         player.cards = player_cards
-        session.commit()
+        s.commit()
 
-    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
     game.curr_player = game.biggest_player = curr_player
-    session.commit()
+    s.commit()
+    session.remove()
 
 
 # Sends message to game group
 def game_message(bot, group_tele_id):
     install_lang(group_tele_id)
     text = ""
+    session = scoped_session(session_factory)
+    s = session()
 
-    game_round, curr_player, biggest_player, curr_player_name = session. \
+    game_round, curr_player, biggest_player, curr_player_name = s. \
         query(Game.game_round, Game.curr_player, Game.biggest_player, Player.player_name). \
         filter(Game.group_tele_id == group_tele_id, Player.player_id == Game.curr_player).first()
 
     if game_round > 1 and curr_player != (biggest_player + 1) % 4:
         prev_player_id = (curr_player - 1) % 4
-        prev_player_name = session.query(Player.player_name). \
+        prev_player_name = s.query(Player.player_name). \
             filter(Player.group_tele_id == group_tele_id, Player.player_id == prev_player_id).first()
 
         text += "--------------------------------------\n"
         text += _("%s decided to PASS\n") % prev_player_name
 
+    session.remove()
     text += "--------------------------------------\n"
     text += _("%s's Turn\n") % curr_player_name
     text += "--------------------------------------\n"
@@ -563,14 +610,17 @@ def game_message(bot, group_tele_id):
 # Sends message to player
 def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=False, message_id=None):
     text = ""
+    session = scoped_session(session_factory)
+    s = session()
 
-    game, player = session.query(Game, Player). \
+    game, player = s.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
                Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, cards = \
         game.game_round, game.curr_player, game.biggest_player, game.curr_cards
     player_tele_id = player.player_tele_id
 
+    session.remove()
     install_lang(player_tele_id)
     text += get_game_message(group_tele_id, game_round, curr_player, biggest_player)
 
@@ -625,7 +675,7 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
         message_id = bot_message.message_id
 
     job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
-    pass_timer = session.query(GroupSetting.pass_timer).filter(GroupSetting.tele_id == group_tele_id).first()[0]
+    pass_timer = s.query(GroupSetting.pass_timer).filter(GroupSetting.tele_id == group_tele_id).first()[0]
     job = job_queue.run_once(pass_round, pass_timer, context=job_context)
     queued_jobs[group_tele_id] = job
 
@@ -633,15 +683,17 @@ def player_message(bot, group_tele_id, job_queue, is_sort_suit=False, is_edit=Fa
 # Returns a string a message that contains info of the game
 def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
     text = ""
+    session = scoped_session(session_factory)
+    s = session()
 
-    player_name = session.query(Player.player_name). \
+    player_name = s.query(Player.player_name). \
         filter(Player.group_tele_id == group_tele_id, Player.player_id == curr_player).first()
-    biggest_player_name = session.query(Player.player_name). \
+    biggest_player_name = s.query(Player.player_name). \
         filter(Player.group_tele_id == group_tele_id, Player.player_id == biggest_player).first()
 
     # Stores the number of cards that each player has
     playes_info = {}
-    players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
+    players = s.query(Player).filter(Player.group_tele_id == group_tele_id).all()
     for player in players:
         player_id, player_name, num_cards = player.player_id, player.player_name, player.num_cards
         player = "%d. %s" % (player_id, player_name)
@@ -658,7 +710,7 @@ def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
         text += "--------------------------------------\n"
     elif game_round > 1:
         text += _("%s used:\n") % biggest_player_name
-        game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+        game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
         cards = game.prev_cards
 
         for card in cards:
@@ -668,6 +720,8 @@ def get_game_message(group_tele_id, game_round, curr_player, biggest_player):
             text += "\n"
 
         text += "--------------------------------------\n"
+
+    session.remove()
 
     return text
 
@@ -688,9 +742,13 @@ def force_stop(bot, update):
         bot.send_message(player_tele_id, _("You are not a group admin"))
         return
 
-    if not session.query(Game).filter(Game.group_tele_id == group_tele_id).first():
+    session = scoped_session(session_factory)
+    s = session()
+    if not s.query(Game).filter(Game.group_tele_id == group_tele_id).first():
         bot.send_message(player_tele_id, _("No game is running at the moment"))
+        session.remove()
         return
+    session.remove()
 
     install_lang(group_tele_id)
     message = (_("Game has been stopped by [%s]") %
@@ -705,7 +763,10 @@ def force_stop(bot, update):
 def show_deck(bot, update):
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
-    cards = session.query(Player.cards).filter(Player.player_tele_id == player_tele_id).first()[0]
+    session = scoped_session(session_factory)
+    s = session()
+    cards = s.query(Player.cards).filter(Player.player_tele_id == player_tele_id).first()[0]
+    session.remove()
 
     if not cards:
         bot.send_message(player_tele_id, _("You are not in a game"))
@@ -729,10 +790,13 @@ def show_deck(bot, update):
 @run_async
 def show_stat(bot, update):
     if update.message.chat.type in (Chat.PRIVATE, Chat.GROUP, Chat.SUPERGROUP):
-        num_games = session.query(sql.func.sum(GroupStat.num_games)).first()[0]
+        session = scoped_session(session_factory)
+        s = session()
+        num_games = s.query(sql.func.sum(GroupStat.num_games)).first()[0]
         num_games = num_games if num_games else 0
-        num_players = session.query(Language).filter(Language.tele_id > 0).count()
-        num_groups = session.query(Language).filter(Language.tele_id < 0).count()
+        num_players = s.query(Language).filter(Language.tele_id > 0).count()
+        num_groups = s.query(Language).filter(Language.tele_id < 0).count()
+        session.remove()
 
         text = "*Global stats*\n"
         text += "Total number of games played: %d\n" % num_games
@@ -751,7 +815,10 @@ def show_stat(bot, update):
 
 # Sends the player's stats
 def show_player_stat(bot, tele_id, text=""):
-    player_stat = session.query(PlayerStat).filter(PlayerStat.tele_id == tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    player_stat = s.query(PlayerStat).filter(PlayerStat.tele_id == tele_id).first()
+    session.remove()
 
     if player_stat:
         num_games, num_cards, win_rate, money, money_earned = \
@@ -775,7 +842,10 @@ def show_player_stat(bot, tele_id, text=""):
 
 # Sends the group's stats
 def show_group_stat(bot, tele_id):
-    group_stat = session.query(GroupStat).filter(GroupStat.tele_id == tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    group_stat = s.query(GroupStat).filter(GroupStat.tele_id == tele_id).first()
+    session.remove()
 
     if group_stat:
         num_games, best_win_rate_player, best_win_rate, most_money_earned_player, most_money_earned = \
@@ -809,19 +879,33 @@ def in_line_button(bot, update, job_queue):
         show_player_stat(bot, int(data.split(",")[1]))
         return
 
-    player = session.query(Player).filter(Player.player_tele_id == player_tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    player = s.query(Player).filter(Player.player_tele_id == player_tele_id).first()
 
     # Checks if player in game
     if not player:
+        session.remove()
         return
 
     group_tele_id = player.group_tele_id
-    if not session.query(Game, Player). \
+    if not s.query(Game, Player). \
             filter(Game.group_tele_id == group_tele_id, Player.player_tele_id == player_tele_id,
                    Game.curr_player == Player.player_id).first():
+        session.remove()
         return
 
     queued_jobs[group_tele_id].schedule_removal()
+
+    if data == "pass":
+        game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+        game.count_pass = 0
+        s.commit()
+
+        job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
+        job_queue.run_once(pass_round, 0, context=job_context)
+
+    session.remove()
 
     if re.match("([2-9JQKA]|10)[DCHS]", data):
         add_use_card(bot, group_tele_id, message_id, data, job_queue)
@@ -830,12 +914,6 @@ def in_line_button(bot, update, job_queue):
     elif data == "unselect":
         return_cards_to_deck(group_tele_id)
         player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
-    elif data == "pass":
-        game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
-        game.count_pass = 0
-        session.commit()
-        job_context = "%d,%d,%d" % (group_tele_id, player_tele_id, message_id)
-        job_queue.run_once(pass_round, 0, context=job_context)
     elif data == "sortSuit":
         player_message(bot, group_tele_id, job_queue, is_sort_suit=True, is_edit=True, message_id=message_id)
     elif data == "sortNum":
@@ -845,26 +923,32 @@ def in_line_button(bot, update, job_queue):
 # Changes the default language of a player/group
 def change_lang(bot, tele_id, message_id, data):
     new_language = data.split(",")[1]
-    language = session.query(Language).filter(Language.tele_id == tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    language = s.query(Language).filter(Language.tele_id == tele_id).first()
 
     if language:
         language.language = new_language
     else:
         try:
             language = Language(tele_id=tele_id, language=language)
-            session.add(language)
+            s.add(language)
+            s.commit()
         except:
-            session.rollback()
+            s.rollback()
+            session.remove()
             return
 
-    session.commit()
+    session.remove()
     install_lang(tele_id)
     bot.editMessageText(text=_("Default language has been set"), chat_id=tele_id, message_id=message_id)
 
 
 # Adds a selected card
 def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
-    game, player = session.query(Game, Player). \
+    session = scoped_session(session_factory)
+    s = session()
+    game, player = s.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
                Player.player_id == Game.curr_player).first()
 
@@ -875,9 +959,12 @@ def add_use_card(bot, group_tele_id, message_id, card_abbrev, job_queue):
     if cards:
         curr_cards.add(cards[0])
         game.curr_cards, player.cards = curr_cards, player_cards
-        session.commit()
+        s.commit()
+        session.remove()
 
         player_message(bot, group_tele_id, job_queue, is_edit=True, message_id=message_id)
+    else:
+        session.remove()
 
 
 # Uses the selected cards
@@ -886,7 +973,9 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     valid = True
     bigger = True
 
-    game, player = session.query(Game, Player). \
+    session = scoped_session(session_factory)
+    s = session()
+    game, player = s.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
                Player.player_id == Game.curr_player).first()
     game_round, curr_player, biggest_player, curr_cards, prev_cards = \
@@ -903,13 +992,15 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     if valid and curr_player != biggest_player and not are_cards_bigger(prev_cards, curr_cards):
         bigger = False
 
-    if not valid:
-        message = _("Invalid cards. Please try again\n")
+    if not valid or not bigger:
+        session.remove()
         return_cards_to_deck(group_tele_id)
-    elif not bigger:
-        message = _("You cards are not bigger than the previous cards. ")
-        message += _("Please try again\n")
-        return_cards_to_deck(group_tele_id)
+
+        if not valid:
+            message = _("Invalid cards. Please try again\n")
+        else:
+            message = _("You cards are not bigger than the previous cards. ")
+            message += _("Please try again\n")
     else:
         message = _("These cards have been used:\n")
         for card in curr_cards:
@@ -927,7 +1018,8 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
         game.curr_cards = pydealer.Stack()
         game.prev_cards = curr_cards
         player.num_cards = new_num_cards
-        session.commit()
+        s.commit()
+        session.remove()
         advance_game(bot, group_tele_id, curr_player, player_name, curr_cards)
 
     if valid and bigger:
@@ -939,7 +1031,9 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
 
 # Retruns curr_cards to the player's deck
 def return_cards_to_deck(group_tele_id):
-    game, player = session.query(Game, Player). \
+    session = scoped_session(session_factory)
+    s = session()
+    game, player = s.query(Game, Player). \
         filter(Game.group_tele_id == group_tele_id, Player.group_tele_id == group_tele_id,
                Player.player_id == Game.curr_player).first()
 
@@ -948,36 +1042,47 @@ def return_cards_to_deck(group_tele_id):
     player_cards.add(curr_cards)
     game.curr_cards = pydealer.Stack()
     player.cards = player_cards
-    session.commit()
+    s.commit()
+    session.remove()
 
 
 # Advances the game
 def advance_game(bot, group_tele_id, curr_player, player_name, curr_cards):
-    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
     game.game_round += 1
     game.curr_player = (curr_player + 1) % 4
     game.biggest_player = curr_player
-    session.commit()
+    s.commit()
 
     game_message(bot, group_tele_id)
 
     if curr_cards.size == 1 and curr_cards.find("2S"):
+        game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
         game.curr_player = curr_player
         game.biggest_player = curr_player
-        session.commit()
+        s.commit()
+        session.remove()
 
         message = (_("I have passed all players since %s has used ♠ 2\n") % player_name)
         message += "--------------------------------------\n"
         message += _("%s's Turn\n") % player_name
 
         bot.send_message(group_tele_id, message, disable_notification=True)
+    else:
+        session.remove()
 
 
 # Game over
 def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, curr_cards, job_queue):
     bot.send_message(player_tele_id, _("You won!"))
 
-    players = session.query(Player).filter(Player.group_tele_id == group_tele_id, Player.player_id != curr_player)
+    session = scoped_session(session_factory)
+    s = session()
+    players = s.query(Player).filter(Player.group_tele_id == group_tele_id, Player.player_id != curr_player)
+    session.remove()
+
     for player in players:
         install_lang(player.player_tele_id)
         bot.send_message(player.player_tele_id, _("You lost!"))
@@ -1000,9 +1105,11 @@ def finish_game(bot, group_tele_id, player_tele_id, curr_player, player_name, cu
 
 # Updates group and player stats
 def update_stats(group_tele_id, won_player, job_queue):
-    money_mode = session.query(GroupSetting.money_mode).filter(GroupSetting.tele_id == group_tele_id).first()[0]
-    players = session.query(Player).filter(Player.group_tele_id == group_tele_id).all()
-    group_stat = session.query(GroupStat).filter(GroupStat.tele_id == group_tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    money_mode = s.query(GroupSetting.money_mode).filter(GroupSetting.tele_id == group_tele_id).first()[0]
+    players = s.query(Player).filter(Player.group_tele_id == group_tele_id).all()
+    group_stat = s.query(GroupStat).filter(GroupStat.tele_id == group_tele_id).first()
     num_cards_left = sum([player.cards.size for player in players])
     money_earned = 0
 
@@ -1011,13 +1118,14 @@ def update_stats(group_tele_id, won_player, job_queue):
     else:
         try:
             group_stat = GroupStat(tele_id=group_tele_id, num_games=1, best_win_rate=0, most_money_earned=0)
-            session.add(group_stat)
+            s.add(group_stat)
         except:
-            session.rollback()
+            s.rollback()
+            session.remove()
             return
 
     for player in players:
-        player_stat = session.query(PlayerStat).filter(PlayerStat.tele_id == player.player_tele_id).first()
+        player_stat = s.query(PlayerStat).filter(PlayerStat.tele_id == player.player_tele_id).first()
 
         if player_stat:
             player_stat.num_games += 1
@@ -1030,9 +1138,10 @@ def update_stats(group_tele_id, won_player, job_queue):
                                          num_cards=13 - player.cards.size, money=init_money, money_earned=0)
                 player_stat.num_games_won = 1 if player.player_id == won_player else 0
                 player_stat.win_rate = player_stat.num_games_won / player_stat.num_games * 100
-                session.add(player_stat)
+                s.add(player_stat)
             except:
-                session.rollback()
+                s.rollback()
+                session.remove()
                 return
 
         if money_mode and player.player_id != won_player:
@@ -1056,39 +1165,46 @@ def update_stats(group_tele_id, won_player, job_queue):
             group_stat.most_money_earned_player = player.player_name
 
     if money_mode:
-        player_stat = session.query(PlayerStat).\
+        player_stat = s.query(PlayerStat).\
             filter(PlayerStat.tele_id == Player.player_tele_id, Player.group_tele_id == group_tele_id,
                    Player.player_id == won_player).first()
         player_stat.money += money_earned
         player_stat.money_earned += money_earned
 
-    session.commit()
+    s.commit()
+    session.remove()
 
 
 # Passes player's turn
 def pass_round(bot, job):
     group_tele_id, player_tele_id, message_id = map(int, job.context.split(","))
     install_lang(player_tele_id)
-    game = session.query(Game).filter(Game.group_tele_id == group_tele_id).first()
 
     try:
         bot.editMessageText(text=_("You Passed"), chat_id=player_tele_id, message_id=message_id)
     except:
         return
 
+    session = scoped_session(session_factory)
+    s = session()
+    game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
+
     if game.count_pass + 1 > 4:
+        session.remove()
         stop_idle_game(bot, group_tele_id)
         return
 
     return_cards_to_deck(group_tele_id)
 
+    game = s.query(Game).filter(Game.group_tele_id == group_tele_id).first()
     game.game_round += 1
     game.curr_player = (game.curr_player + 1) % 4
     game.count_pass += 1
 
     if game.game_round > 1 and game.curr_player == game.biggest_player:
         game.prev_cards = pydealer.Stack()
-    session.commit()
+    s.commit()
+    session.remove()
 
     game_message(bot, group_tele_id)
     player_message(bot, group_tele_id, job.job_queue)
@@ -1107,7 +1223,10 @@ def stop_idle_game(bot, group_tele_id):
 @run_async
 def recharge(bot, update):
     player_tele_id = update.message.from_user.id
-    player_money = session.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
+    session = scoped_session(session_factory)
+    s = session()
+    player_money = s.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
+    session.remove()
 
     if player_money == 0:
         title = "Coffee"
@@ -1150,28 +1269,36 @@ def recharge_money(bot, job):
     player_tele_id = job.context
     install_lang(player_tele_id)
 
-    player_stats = session.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    player_stats = s.query(PlayerStat).filter(PlayerStat.tele_id == player_tele_id).first()
     player_stats.money = 1000
-    session.commit()
+    s.commit()
+    session.remove()
 
     bot.send_message(player_tele_id, "Your money has been recharged")
 
 
 # Installs the language
 def install_lang(tele_id):
-    language = session.query(Language).filter(Language.tele_id == tele_id).first()
+    session = scoped_session(session_factory)
+    s = session()
+    language = s.query(Language).filter(Language.tele_id == tele_id).first()
+
     if language:
         es = gettext.translation("big_two_text", localedir="locale", languages=[language.language])
     else:
         try:
             language = Language(tele_id=tele_id, language="en")
-            session.add(language)
-            session.commit()
+            s.add(language)
+            s.commit()
         except:
-            session.rollback()
+            s.rollback()
 
         es = gettext.translation("big_two_text", localedir="locale", languages=["en"])
+
     es.install()
+    session.remove()
 
 
 # Creates a feedback conversation handler
@@ -1252,17 +1379,6 @@ def send(bot, update, args):
         except Exception as e:
             logger.exception(e)
             bot.send_message(dev_tele_id, "Failed to send message")
-
-
-# Bot status for dev
-def status(bot, update):
-    if update.message.from_user.id == dev_tele_id:
-        num_users = session.query(Language).filter(Language.tele_id > 0).count()
-        num_groups = session.query(Language).filter(Language.tele_id < 0).count()
-        num_games = session.query(Game).count()
-
-        text = "Number of users: %d\nNumber of groups: %d\nNumber of games: %d" % (num_users, num_groups, num_games)
-        bot.send_message(dev_tele_id, text)
 
 
 def error(bot, update, error):
