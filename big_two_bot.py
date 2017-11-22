@@ -192,7 +192,7 @@ def donate(bot, update):
     player_tele_id = update.message.from_user.id
     install_lang(player_tele_id)
     message = _("Want to help keep me online? Please donate to %s through PayPal.\n\nDonations "
-                "help me to stay on my server and keep running." % dev_email)
+                "help me to stay on my server and keep running.") % dev_email
     try:
         bot.send_message(player_tele_id, message)
     except:
@@ -280,7 +280,7 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
     else:
         game_mode = game_mode.lower()
         if game_mode not in ("normal", "money"):
-            bot.send_message(group_tele_id, "Game mode can either be set to 'normal' or 'money'")
+            bot.send_message(group_tele_id, _("Game mode can either be set to 'normal' or 'money'"))
             return
 
         group_settings = s.query(GroupSetting).filter(GroupSetting.tele_id == group_tele_id).first()
@@ -303,7 +303,7 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
                 return
 
         session.remove()
-        bot.send_message(group_tele_id, "Game mode has been set to '%s'" % game_mode)
+        bot.send_message(group_tele_id, _("Game mode has been set to '%s'") % game_mode)
 
 
 # Sets game timer
@@ -382,7 +382,7 @@ def start_game(bot, update, job_queue):
         return
 
     install_lang(group_tele_id)
-    text = _("[%s] has started Big Two. Type /join to join the game\n\n" % player_name)
+    text = _("[%s] has started Big Two. Type /join to join the game\n\n") % player_name
 
     bot.send_message(chat_id=group_tele_id,
                      text=text,
@@ -477,9 +477,9 @@ def join(bot, update, job_queue):
             player_money = s.query(PlayerStat.money).filter(PlayerStat.tele_id == player_tele_id).first()[0]
             if player_money == 0:
                 recharge_time = recharge_times[player_tele_id].shift(seconds=recharge_delay)
-                text = "You don't have any money left to join the game.\n\n"
-                text += "You can consider to buy me a /coffee to recharge your money immediately.\n\n"
-                text += "Or wait for your money to be recharged %s." % recharge_time.humanize()
+                text = _("You don't have any money left to join the game.\n\n")
+                text += _("You can consider to buy me a /coffee to recharge your money immediately.\n\n")
+                text += _("Or wait for your money to be recharged %s.") % recharge_time.humanize()
 
                 bot.send_message(player_tele_id, text)
                 return
@@ -1241,7 +1241,7 @@ def recharge(bot, update):
         bot.sendInvoice(update.message.chat.id, title, description, payload, provider_token, start_parameter, currency,
                         prices)
     else:
-        bot.send_message(player_tele_id, "You still have $%d left." % player_money)
+        bot.send_message(player_tele_id, _("You still have $%d left.") % player_money)
 
 
 # Pre-checkout recharge
@@ -1261,7 +1261,7 @@ def successful_recharge(bot, update, job_queue):
         queued_jobs[player_tele_id].schedule_removal()
 
     job_queue.run_once(recharge_money, 0, context=player_tele_id)
-    bot.send_message(player_tele_id, "Thanks for the coffee! Enjoy Big 2!")
+    bot.send_message(player_tele_id, _("Thanks for the coffee! Enjoy Big 2!"))
 
 
 # Recharges the player's money
@@ -1276,7 +1276,7 @@ def recharge_money(bot, job):
     s.commit()
     session.remove()
 
-    bot.send_message(player_tele_id, "Your money has been recharged")
+    bot.send_message(player_tele_id, _("Your money has been recharged"))
 
 
 # Installs the language
