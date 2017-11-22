@@ -235,14 +235,14 @@ def set_lang(bot, update):
 @run_async
 def set_join_timer(bot, update, args):
     if args:
-        set_game_timer(bot, update, "join", args[0])
+        set_group_setting(bot, update, "join", args[0])
 
 
 # Sets pass timer
 @run_async
 def set_pass_timer(bot, update, args):
     if args:
-        set_game_timer(bot, update, "pass", args[0])
+        set_group_setting(bot, update, "pass", args[0])
 
 
 # Sets game mode
