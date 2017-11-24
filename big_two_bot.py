@@ -993,7 +993,9 @@ def use_selected_cards(bot, player_tele_id, group_tele_id, message_id, job_queue
     if curr_cards.size == 0:
         return
 
-    if get_cards_type(curr_cards) == -1 or (game_round == 1 and not curr_cards.find("3D")) or \
+    # if get_cards_type(curr_cards) == -1 or (game_round == 1 and not curr_cards.find("3D")) or \
+    #         (curr_player != biggest_player and prev_cards.size != 0 and prev_cards.size != curr_cards.size):
+    if get_cards_type(curr_cards) == -1 or \
             (curr_player != biggest_player and prev_cards.size != 0 and prev_cards.size != curr_cards.size):
         valid = False
 
