@@ -118,8 +118,8 @@ msgid "You can only change the timer when a game is not running"
 msgstr "你要在沒有人玩的時候才可以改計時器"
 
 #: big_two_bot.py:272
-msgid "Join timer can only be set between 10s to 60s"
-msgstr "加入遊戲的計時器只可以設定在10到60秒"
+msgid "Join timer can only be set between 10s to 180s"
+msgstr "加入遊戲的計時器只可以設定在10到180秒"
 
 #: big_two_bot.py:274
 msgid "Pass timer can only be set between 20s to 120s"

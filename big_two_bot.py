@@ -317,10 +317,10 @@ def set_group_setting(bot, update, timer_type=None, timer=None, game_mode=None):
 def set_game_timer(bot, group_tele_id, timer_type, timer):
     install_lang(group_tele_id)
 
-    if not re.match("\d+", timer) or (timer_type == "join_timer" and int(timer) not in range(10, 61)) or \
+    if not re.match("\d+", timer) or (timer_type == "join_timer" and int(timer) not in range(10, 181)) or \
             (timer_type == "pass_timer" and int(timer) not in range(20, 121)):
         if timer_type == "join":
-            message = _("Join timer can only be set between 10s to 60s")
+            message = _("Join timer can only be set between 10s to 180s")
         else:
             message = _("Pass timer can only be set between 20s to 120s")
         bot.send_message(group_tele_id, message)

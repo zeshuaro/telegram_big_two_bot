@@ -141,8 +141,8 @@ msgid "Game mode has been set to '%s'"
 msgstr "La modalità di gioco è stata impostata su '%s'"
 
 #: big_two_bot.py:316
-msgid "Join timer can only be set between 10s to 60s"
-msgstr "Il timer per joinare può essere impostato solo da 10s a 60s"
+msgid "Join timer can only be set between 10s to 180s"
+msgstr "Il timer per joinare può essere impostato solo da 10s a 180s"
 
 #: big_two_bot.py:318
 msgid "Pass timer can only be set between 20s to 120s"

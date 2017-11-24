@@ -124,8 +124,8 @@ msgid "You can only change the timer when a game is not running"
 msgstr "You can only change the timer when a game is not running"
 
 #: big_two_bot.py:272
-msgid "Join timer can only be set between 10s to 60s"
-msgstr "Join timer can only be set between 10s to 60s"
+msgid "Join timer can only be set between 10s to 180s"
+msgstr "Join timer can only be set between 10s to 180s"
 
 #: big_two_bot.py:274
 msgid "Pass timer can only be set between 20s to 120s"
