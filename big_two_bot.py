@@ -222,10 +222,17 @@ def set_lang(bot, update):
     else:
         return
 
-    keyboard = [[InlineKeyboardButton("English", callback_data="set_lang,en"),
-                 InlineKeyboardButton("廣東話", callback_data="set_lang,zh-hk")],
-                [InlineKeyboardButton("正體中文", callback_data="set_lang,zh-tw"),
-                 InlineKeyboardButton("简体中文", callback_data="set_lang,zh-cn")]]
+    langs = {"English": "set_lang,en",
+             "Italian": "set_lang,it",
+             "廣東話": "set_lang,zh-hk",
+             "正體中文": "set_lang,zh-tw",
+             "简体中文": "set_lang,zh-cn"}
+
+    keyboard = []
+    for lang in sorted(langs.keys()):
+        keyboard.append(InlineKeyboardButton(lang, callback_data=langs[lang]))
+
+    keyboard = [keyboard[i:i + 2] for i in range(0, len(keyboard), 2)]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     bot.send_message(tele_id, message, reply_markup=reply_markup)
@@ -939,6 +946,7 @@ def change_lang(bot, tele_id, message_id, data):
             session.remove()
             return
 
+    s.commit()
     session.remove()
     install_lang(tele_id)
     bot.editMessageText(text=_("Default language has been set"), chat_id=tele_id, message_id=message_id)
