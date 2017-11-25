@@ -349,6 +349,7 @@ def set_game_timer(bot, group_tele_id, timer_type, timer):
             session.remove()
             return
 
+    s.commit()
     session.remove()
 
     if timer_type == "join":
