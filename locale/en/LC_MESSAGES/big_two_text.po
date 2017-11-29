@@ -156,8 +156,7 @@ msgid ""
 "[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able "
 "to join and play Big Two"
 msgstr ""
-"[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able "
-"to join and play Big Two"
+"[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able to join and play Big Two"
 
 #: big_two_bot.py:360
 msgid "Say start to me"
