@@ -424,7 +424,8 @@ def can_msg_player(bot, update):
     try:
         bot_message = bot.send_message(player_tele_id, "Testing... You can ignore or delete this message if it doesn't"
                                                        "get deleted automatically.")
-    except TelegramError or Unauthorized:
+        bot.delete_message(chat_id=player_tele_id, message_id=bot_message.message_id)
+    except:
         is_success = False
         player_name = update.message.from_user.first_name
         group_tele_id = update.message.chat.id
@@ -437,8 +438,7 @@ def can_msg_player(bot, update):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         bot.send_message(chat_id=group_tele_id, text=text, reply_markup=reply_markup)
-    else:
-        bot.delete_message(chat_id=player_tele_id, message_id=bot_message.message_id)
+
 
     return is_success
 
