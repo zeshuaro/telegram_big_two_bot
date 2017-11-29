@@ -439,7 +439,6 @@ def can_msg_player(bot, update):
 
         bot.send_message(chat_id=group_tele_id, text=text, reply_markup=reply_markup)
 
-
     return is_success
 
 
