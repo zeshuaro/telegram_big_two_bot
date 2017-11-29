@@ -432,7 +432,7 @@ def can_msg_player(bot, update):
         install_lang(group_tele_id)
 
         text = (_("[%s] Please PM [@biggytwobot] and say [/start]. Otherwise, you won't be able to join and "
-                  "play Big Two") % player_name)
+                  "play Big Two" % player_name))
 
         keyboard = [[InlineKeyboardButton(text=_("Say start to me"), url="https://telegram.me/biggytwobot")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
